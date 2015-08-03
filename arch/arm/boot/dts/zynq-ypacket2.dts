@@ -42,6 +42,7 @@
 	};
 };
 
+
 &qspi {
 	status = "okay";
 	is-dual = <0>;
@@ -58,21 +59,17 @@
 			label = "qspi-fsbl-uboot";
 			reg = <0x0 0x100000>;
 		};
-		partition@qspi-linux {
-			label = "qspi-linux";
-			reg = <0x100000 0x500000>;
+		partition@qspi-sw-bank0 {
+			label = "qspi-sw-bank0";
+			reg = <0x100000 0x100000>;
 		};
-		partition@qspi-device-tree {
-			label = "qspi-device-tree";
-			reg = <0x600000 0x20000>;
+		partition@qspi-sw-bank1 {
+			label = "qspi-sw-bank1";
+			reg = <0x200000 0x100000>;
 		};
-		partition@qspi-rootfs {
+		partition@qspi-jffs2 {
 			label = "qspi-rootfs";
-			reg = <0x620000 0x5E0000>;
-		};
-		partition@qspi-bitstream {
-			label = "qspi-bitstream";
-			reg = <0xC00000 0x400000>;
+			reg = <0x300000 0xd00000>;
 		};
 	};
 };
@@ -92,6 +89,7 @@
 		reg = <7>;
 	};
 };
+
 
 &gpio0 {
 	pinctrl-names = "default";
@@ -356,3 +354,9 @@
 	dr_mode = "host";
 	usb-phy = <&usb_phy0>;
 };
+
+&can0 {
+	status = "okay";
+};
+
+

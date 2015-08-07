@@ -22,7 +22,7 @@
 		ethernet0 = &gem0;
 		i2c0 = &i2c0;
 		serial0 = &uart1;
-		spi0 = &qspi;
+		qspi0 = &qspi;
 	};
 
 	memory {
@@ -434,5 +434,32 @@
 &can0 {
 	status = "okay";
 };
+
+
+
+&spi0 {
+	compatible = "xlnx,zynq-spi-r1p6";
+	reg = <0xe0006000 0x1000>;
+	status = "okay";
+	interrupt-parent = <&intc>;
+	interrupts = <0 26 4>;
+	clocks = <&clkc 25>, <&clkc 34>;
+	clock-names = "ref_clk", "pclk";
+	#address-cells = <1>;
+	#size-cells = <0>;
+	num-cs = <2>;
+	is-decoded-cs = <0>;
+	spidev@0{
+		compatible="spidev";
+		reg =<0>; //chipselect 0
+		spi-max-frequency= <50000000>;
+	};
+	spidev@1{
+		compatible="spidev";
+		reg =<1>; //chipselect 1
+		spi-max-frequency= <50000000>;
+	};
+};
+
 
 

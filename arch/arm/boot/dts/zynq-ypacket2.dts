@@ -172,6 +172,11 @@
 	pinctrl-0 = <&pinctrl_gpio0_default>;
 };
 
+&i2c1 {
+	status = "okay";
+	clock-frequency = <400000>;
+};
+
 &i2c0 {
 	status = "okay";
 	clock-frequency = <400000>;

@@ -1148,7 +1148,7 @@ static int xemaclite_of_probe(struct platform_device *ofdev)
 	lp->phy_node = of_parse_phandle(ofdev->dev.of_node, "phy-handle", 0);
 	rc = xemaclite_mdio_setup(lp, &ofdev->dev);
 	if (rc)
-		dev_warn(&ofdev->dev, "error registering MDIO bus\n");
+		dev_warn(&ofdev->dev, "error registering MDIO bus, phy_node %p\n", lp->phy_node);
 
 	dev_info(dev, "MAC address is now %pM\n", ndev->dev_addr);
 

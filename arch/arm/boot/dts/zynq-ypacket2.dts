@@ -117,7 +117,53 @@
 			} ;
 		} ;
 
-};
+
+axi_ethernetlite_0: ethernet@40e00000 {
+                        compatible = "xlnx,axi-ethernetlite-3.0", "xlnx,xps-ethernetlite-1.00.a";
+                        device_type = "network";
+                        interrupt-parent = <&intc>;
+                        interrupts = <0 32 0>;
+                        local-mac-address = [00 0a 35 00 00 00];
+                        reg = <0x40e00000 0x10000>;
+                        xlnx,duplex = <0x1>;
+                        xlnx,include-global-buffers = <0x1>;
+                        xlnx,include-internal-loopback = <0x0>;
+                        xlnx,include-mdio = <0x0>;
+                        xlnx,has-mdio = <0x0>;
+                        xlnx,instance = "axi_ethernetlite_inst";
+                        xlnx,rx-ping-pong = <0x1>;
+                        xlnx,s-axi-id-width = <0x1>;
+                        xlnx,tx-ping-pong = <0x1>;
+                        xlnx,use-internal = <0x0>;
+	                    fixed-link {
+	                        speed = <100>;
+	                        full-duplex;
+	                    };
+                } ;
+
+axi_ethernetlite_1: ethernet@40e10000 {
+                        compatible = "xlnx,axi-ethernetlite-3.0", "xlnx,xps-ethernetlite-1.00.a";
+                        device_type = "network";
+                        interrupt-parent = <&intc>;
+                        interrupts = <0 33 0>;
+                        local-mac-address = [00 0a 35 00 00 01];
+                        reg = <0x40e10000 0x10000>;
+                        xlnx,duplex = <0x1>;
+                        xlnx,include-global-buffers = <0x1>;
+                        xlnx,include-internal-loopback = <0x0>;
+                        xlnx,include-mdio = <0x0>;
+                        xlnx,has-mdio = <0x0>;
+                        xlnx,instance = "axi_ethernetlite_inst";
+                        xlnx,rx-ping-pong = <0x1>;
+                        xlnx,s-axi-id-width = <0x1>;
+                        xlnx,tx-ping-pong = <0x1>;
+                        xlnx,use-internal = <0x0>;
+	                    fixed-link {
+	                        speed = <100>;
+	                        full-duplex;
+	                    };
+                } ;				
+			};	
 
 &qspi {
 	status = "okay";
@@ -465,6 +511,7 @@
 		spi-max-frequency= <50000000>;
 	};
 };
+
 
 
 

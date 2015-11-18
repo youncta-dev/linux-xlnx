@@ -32,7 +32,7 @@
 #include <linux/can/dev.h>
 #include <linux/can/error.h>
 #include <linux/can/led.h>
-
+#include <linux/debugfs.h>
 #define DRIVER_NAME	"xilinx_can"
 
 /* CAN registers set */
@@ -114,6 +114,7 @@ enum xcan_reg {
 #define XCAN_FRAME_MAX_DATA_LEN		8
 #define XCAN_TIMEOUT			(1 * HZ)
 
+
 /**
  * struct xcan_priv - This definition define CAN driver instance
  * @can:			CAN private data structure.
@@ -157,6 +158,11 @@ static const struct can_bittiming_const xcan_bittiming_const = {
 	.brp_max = 256,
 	.brp_inc = 1,
 };
+
+static struct dentry* dir = NULL;
+static int dump_tx = 0;
+static int dump_rx = 0;
+
 
 /**
  * xcan_write_reg_le - Write a value to the device register little endian
@@ -457,6 +463,17 @@ static int xcan_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	if ((priv->tx_head - priv->tx_tail) == priv->tx_max)
 		netif_stop_queue(ndev);
 
+    if (dump_tx)
+        printk(KERN_ALERT "->id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", cf->can_id, cf->can_dlc, cf->data[0],
+                                                                                                              cf->data[1],
+                                                                                                              cf->data[2],
+                                                                                                              cf->data[3],
+                                                                                                              cf->data[4],
+                                                                                                              cf->data[5],
+                                                                                                              cf->data[6],
+                                                                                                              cf->data[7]
+                                                                                                            );
+
 	return NETDEV_TX_OK;
 }
 
@@ -524,6 +541,17 @@ static int xcan_rx(struct net_device *ndev)
 	stats->rx_bytes += cf->can_dlc;
 	stats->rx_packets++;
 	netif_receive_skb(skb);
+
+    if (dump_rx)
+        printk(KERN_ALERT "<-id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", cf->can_id, cf->can_dlc, cf->data[0],
+                                                                                                              cf->data[1],
+                                                                                                              cf->data[2],
+                                                                                                              cf->data[3],
+                                                                                                              cf->data[4],
+                                                                                                              cf->data[5],
+                                                                                                              cf->data[6],
+                                                                                                              cf->data[7]
+                                                                                                            );
 
 	return 1;
 }
@@ -1039,6 +1067,8 @@ static int xcan_probe(struct platform_device *pdev)
 	struct resource *res; /* IO mem resources */
 	struct net_device *ndev;
 	struct xcan_priv *priv;
+    struct dentry *junk;
+
 	void __iomem *addr;
 	int ret, rx_max, tx_max;
 
@@ -1142,6 +1172,22 @@ static int xcan_probe(struct platform_device *pdev)
 	netdev_dbg(ndev, "reg_base=0x%p irq=%d clock=%d, tx fifo depth:%d\n",
 			priv->reg_base, ndev->irq, priv->can.clock.freq,
 			priv->tx_max);
+
+    dir = debugfs_create_dir("xcan", 0);
+    if (!dir) {
+        printk(KERN_INFO "debugfs: cannot create /sys/kernel/debug/xcan\n");
+    }
+    
+    
+    junk = debugfs_create_u32("dump_tx", 0777, dir, &dump_tx);
+    if (!junk) {
+        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/xcan/dump_tx\n");
+    }
+
+    junk = debugfs_create_u32("dump_rx", 0777, dir, &dump_rx);
+    if (!junk) {
+        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/xcan/dump_rx\n");
+    }
 
 	return 0;
 

@@ -20,6 +20,7 @@
 #include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/spi/spi.h>
+#include <linux/debugfs.h>
 
 /* Name of this driver */
 #define CDNS_SPI_NAME		"cdns-spi"
@@ -124,6 +125,11 @@ struct cdns_spi {
 	u8 dev_busy;
 	u32 is_decoded_cs;
 };
+
+
+static struct dentry* dir = NULL;
+static int dump = 0;
+
 
 /* Macros for the SPI controller read/write */
 static inline u32 cdns_spi_read(struct cdns_spi *xspi, u32 offset)
@@ -423,6 +429,26 @@ static int cdns_transfer_one(struct spi_master *master,
 
 	cdns_spi_write(xspi, CDNS_SPI_IER_OFFSET,
 		       CDNS_SPI_IXR_DEFAULT_MASK);
+
+    if (dump) {
+        unsigned char* txb = (unsigned char*) transfer->tx_buf;
+        unsigned char* rxb = (unsigned char*) transfer->rx_buf;
+
+        if (xspi->txbuf)
+            printk(KERN_ALERT "-> len: %02x data: %02x %02x %02x %02x\n", transfer->len,
+                                                                          txb[0], 
+                                                                          txb[1], 
+                                                                          txb[2], 
+                                                                          txb[3]);
+        if (xspi->rxbuf)
+            printk(KERN_ALERT "<- len: %02x data: %02x %02x %02x %02x\n", transfer->len,
+                                                                          rxb[0], 
+                                                                          rxb[1], 
+                                                                          rxb[2], 
+                                                                          rxb[3]);
+
+    }
+
 	return transfer->len;
 }
 
@@ -479,6 +505,7 @@ static int cdns_spi_probe(struct platform_device *pdev)
 	struct cdns_spi *xspi;
 	struct resource *res;
 	u32 num_cs;
+    struct dentry *junk;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*xspi));
 	if (master == NULL)
@@ -568,6 +595,19 @@ static int cdns_spi_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "spi_register_master failed\n");
 		goto clk_dis_all;
 	}
+
+
+    dir = debugfs_create_dir("spi", 0);
+    if (!dir) {
+        printk(KERN_INFO "debugfs: cannot create /sys/kernel/debug/spi\n");
+    }
+    
+    
+    junk = debugfs_create_u32("dump", 0777, dir, &dump);
+    if (!junk) {
+        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/spi/dump\n");
+    }
+
 
 	return ret;
 

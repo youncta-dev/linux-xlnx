@@ -53,6 +53,7 @@
 #define SPINOR_OP_BP		0x02	/* Byte program */
 #define SPINOR_OP_WRDI		0x04	/* Write disable */
 #define SPINOR_OP_AAI_WP	0xad	/* Auto address increment word program */
+#define GLOBAL_BLKPROT_UNLK	0x98	/* Clear global write protection bits */
 
 /* Used for Macronix and Winbond flashes. */
 #define SPINOR_OP_EN4B		0xb7	/* Enter 4-byte mode */
@@ -73,10 +74,11 @@
 #define SR_BP0			4	/* Block protect 0 */
 #define SR_BP1			8	/* Block protect 1 */
 #define SR_BP2			0x10	/* Block protect 2 */
+/* SR_BP3 only used on some Micron chip; must NOT be in SR_BP_BIT_MASK */
+#define SR_BP3			0x40	/* Block protect 3 */
 #define	SR_BP_BIT_OFFSET	2	/* Offset to Block protect 0 */
 #define	SR_BP_BIT_MASK		(SR_BP2 | SR_BP1 | SR_BP0)
 #define SR_SRWD			0x80	/* SR write protect */
-#define SR_BP3			0x40
 /* Bit to determine whether protection starts from top or bottom */
 #define SR_BP_TB		0x20
 

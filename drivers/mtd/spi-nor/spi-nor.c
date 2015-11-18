@@ -58,6 +58,8 @@ struct flash_info {
 #define	USE_FSR			0x80	/* use flag status register */
 #define	SPI_NOR_FLASH_LOCK	0x100	/* Flash protection support */
 #define	SPI_NOR_QUAD_IO_READ	0x200	/* Flash supports Quad IO read */
+/* Unlock the Global protection for sst flashes */
+#define	SST_GLOBAL_PROT_UNLK	0x400
 };
 
 #define JEDEC_MFR(info)	((info)->id[0])
@@ -555,9 +557,10 @@ static inline uint16_t min_lockable_sectors(struct spi_nor *nor,
 	 * Revisit - SST (not used by us) has the same JEDEC ID as micron but
 	 * protected area table is similar to that of spansion.
 	 */
-	lock_granularity = max(1, n_sectors/M25P_MAX_LOCKABLE_SECTORS);
 	if (nor->jedec_id == CFI_MFR_ST)	/* Micron */
 		lock_granularity = 1;
+	else
+		lock_granularity = max(1, n_sectors/M25P_MAX_LOCKABLE_SECTORS);
 
 	return lock_granularity;
 }
@@ -594,7 +597,7 @@ static uint8_t min_protected_area_including_offset(struct spi_nor *nor,
 	/*
 	 * Revisit - SST (not used by us) has the same JEDEC ID as micron but
 	 * protected area table is similar to that of spansion.
-	 * Mircon has 4 block protect bits.
+	 * Micron has 4 block protect bits.
 	 */
 	lockbits_limit = 7;
 	if (nor->jedec_id == CFI_MFR_ST)	/* Micron */
@@ -618,6 +621,9 @@ static int write_sr_modify_protection(struct spi_nor *nor, uint8_t status,
 
 	/* Micron */
 	if (nor->jedec_id == CFI_MFR_ST) {
+		/* To support chips with more than 896 sectors (56MB) */
+		status_new &= ~SR_BP3;
+
 		/* Protected area starts from top */
 		status_new &= ~SR_BP_TB;
 
@@ -644,14 +650,13 @@ static int write_sr_modify_protection(struct spi_nor *nor, uint8_t status,
 
 static uint8_t bp_bits_from_sr(struct spi_nor *nor, uint8_t status)
 {
-    uint8_t ret;
+	uint8_t ret;
 
-    ret = (((status) & SR_BP_BIT_MASK) >> SR_BP_BIT_OFFSET);
-    if (nor->jedec_id == 0x20) {
-        ret |= ((status & SR_BP3) >> (SR_BP_BIT_OFFSET + 1));
-    }
+	ret = (((status) & SR_BP_BIT_MASK) >> SR_BP_BIT_OFFSET);
+	if (nor->jedec_id == 0x20)
+		ret |= ((status & SR_BP3) >> (SR_BP_BIT_OFFSET + 1));
 
-    return ret;
+	return ret;
 }
 
 static int spi_nor_lock(struct mtd_info *mtd, loff_t ofs, uint64_t len)
@@ -930,6 +935,8 @@ static const struct spi_device_id spi_nor_ids[] = {
 	{ "sst25wf020",  INFO(0xbf2503, 0, 64 * 1024,  4, SECT_4K | SST_WRITE) },
 	{ "sst25wf040",  INFO(0xbf2504, 0, 64 * 1024,  8, SECT_4K | SST_WRITE) },
 	{ "sst25wf080",  INFO(0xbf2505, 0, 64 * 1024, 16, SECT_4K | SST_WRITE) },
+	{ "sst26wf016B", INFO(0xbf2651, 0, 64 * 1024, 32, SECT_4K |
+							SST_GLOBAL_PROT_UNLK) },
 
 	/* ST Microelectronics -- newer production may have feature updates */
 	{ "m25p05",  INFO(0x202010,  0,  32 * 1024,   2, 0) },
@@ -1327,8 +1334,14 @@ static int __maybe_unused spansion_quad_enable(struct spi_nor *nor)
 	int ret;
 	int quad_en = CR_QUAD_EN_SPAN << 8;
 
+	if (nor->isparallel)
+		nor->spi->master->flags |= SPI_DATA_STRIPE;
+
 	quad_en |= read_sr(nor);
 	quad_en |= (read_cr(nor) << 8);
+
+	if (nor->isparallel)
+		nor->spi->master->flags &= ~SPI_DATA_STRIPE;
 
 	write_enable(nor);
 
@@ -1339,12 +1352,19 @@ static int __maybe_unused spansion_quad_enable(struct spi_nor *nor)
 		return -EINVAL;
 	}
 
+	if (nor->isparallel)
+		nor->spi->master->flags |= SPI_DATA_STRIPE;
 	/* read back and check it */
 	ret = read_cr(nor);
 	if (!(ret > 0 && (ret & CR_QUAD_EN_SPAN))) {
 		dev_err(nor->dev, "Spansion Quad bit not set\n");
+		if (nor->isparallel)
+			nor->spi->master->flags &= ~SPI_DATA_STRIPE;
 		return -EINVAL;
 	}
+
+	if (nor->isparallel)
+		nor->spi->master->flags &= ~SPI_DATA_STRIPE;
 
 	return 0;
 }
@@ -1443,6 +1463,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	struct mtd_info *mtd = nor->mtd;
 	struct device_node *np = dev->of_node;
 	struct device_node *np_spi;
+	uint64_t actual_size;
 	int ret;
 	int i;
 
@@ -1497,6 +1518,12 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	    JEDEC_MFR(info) == CFI_MFR_SST) {
 		write_enable(nor);
 		write_sr(nor, 0);
+
+		if (info->flags & SST_GLOBAL_PROT_UNLK) {
+			write_enable(nor);
+			/* Unlock global write protection bits */
+			nor->write_reg(nor, GLOBAL_BLKPROT_UNLK, NULL, 0, 0);
+		}
 	}
 
 	if (!mtd->name)
@@ -1507,6 +1534,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	mtd->size = info->sector_size * info->n_sectors;
 	mtd->_erase = spi_nor_erase;
 	mtd->_read = spi_nor_read_ext;
+	actual_size = mtd->size;
 
 	{
 #ifdef CONFIG_OF
@@ -1676,7 +1704,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 
 	if (info->addr_width)
 		nor->addr_width = info->addr_width;
-	else if (mtd->size > 0x1000000) {
+	else if (actual_size > 0x1000000) {
 #ifdef CONFIG_OF
 		np_spi = of_get_next_parent(np);
 		if (of_property_match_string(np_spi, "compatible",

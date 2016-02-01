@@ -75,18 +75,18 @@
 	ps-clk-frequency = <50000000>;
 };
 
-&gem0 {
-	status = "disabled";
-	phy-mode = "rgmii-id";
-	phy-handle = <&ethernet_phy>;
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_gem0_default>;
+&gem1 {
+	status = "okay";
+    phy-mode = "sgmii";
 
-	ethernet_phy: ethernet-phy@7 {
-		reg = <7>;
-	};
+    phy-handle = <&phy1>;
+
+    phy1: phy@16 {
+                compatible = "Xilinx PCS/PMA PHY";
+                device_type = "ethernet-phy";
+                reg = <16>;
+    };
 };
-
 
 &gpio0 {
 	pinctrl-names = "default";

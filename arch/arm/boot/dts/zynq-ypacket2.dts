@@ -21,7 +21,7 @@
 	aliases {
 
 		i2c0 = &i2c0;
-		spi5 = &qspi;
+		qspi0 = &qspi;
         spi0 = &spi0;
         spi1 = &spi1;
 		serial0 = &uart0;

@@ -896,6 +896,7 @@ static const struct spi_device_id spi_nor_ids[] = {
 	{ "n25q00",      INFO(0x20ba21, 0, 64 * 1024, 2048, SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ | USE_FSR | SPI_NOR_FLASH_LOCK) },
     { "mt25ql02gc",  INFO(0x20ba22, 0, 64 * 1024, 4096, SPI_NOR_QUAD_READ) },
 
+
 	/* PMC */
 	{ "pm25lv512",   INFO(0,        0, 32 * 1024,    2, SECT_4K_PMC) },
 	{ "pm25lv010",   INFO(0,        0, 32 * 1024,    4, SECT_4K_PMC) },
@@ -1014,12 +1015,16 @@ static const struct spi_device_id *spi_nor_read_id(struct spi_nor *nor)
 	struct flash_info	*info;
 	nor->spi->master->flags &= ~SPI_BOTH_FLASH;
 
+
+
 	/* If more than one flash are present,need to read id of second flash */
 	tmp = nor->read_reg(nor, SPINOR_OP_RDID, id, SPI_NOR_MAX_ID_LEN);
 	if (tmp < 0) {
 		dev_dbg(nor->dev, " error %d reading JEDEC ID\n", tmp);
 		return ERR_PTR(tmp);
 	}
+
+    printk(KERN_NOTICE "qspi jedec id: %02x %02x %02x\n", id[0], id[1], id[2]);
 
 	for (tmp = 0; tmp < ARRAY_SIZE(spi_nor_ids) - 1; tmp++) {
 		info = (void *)spi_nor_ids[tmp].driver_data;
@@ -1467,6 +1472,7 @@ int spi_nor_scan(struct spi_nor *nor, const char *name, enum read_mode mode)
 	uint64_t actual_size;
 	int ret;
 	int i;
+
 
 	ret = spi_nor_check(nor);
 	if (ret)

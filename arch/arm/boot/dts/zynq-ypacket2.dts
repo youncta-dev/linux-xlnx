@@ -56,7 +56,15 @@
 		#size-cells = <1>;
 		partition@qspi-fsbl-uboot {
 			label = "qspi-fsbl-uboot";
-			reg = <0x0 0x1000000>;
+			reg = <0x0 0xf00000>;
+		};
+		partition@qspi-uboot-env0 {
+			label = "qspi-uboot-env0";
+			reg = <0xf00000 0x40000>;
+		};
+		partition@qspi-uboot-env1 {
+			label = "qspi-uboot-env1";
+			reg = <0xf40000 0x40000>;
 		};
 		partition@qspi-sw-bank0 {
 			label = "qspi-sw-bank0";

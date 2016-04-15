@@ -34,7 +34,7 @@
 	};
 
 	chosen {
-		bootargs = "console=ttyPS0,115200 root=/dev/ram rw earlyprintk";
+		bootargs = "console=ttyPS0,115200 rootfstype=squashfs root=/dev/mtdblock4 ro earlyprintk";
 		stdout-path = &uart0;
 	};
 
@@ -66,13 +66,21 @@
 			label = "qspi-uboot-env1";
 			reg = <0xf40000 0x40000>;
 		};
-		partition@qspi-sw-bank0 {
-			label = "qspi-sw-bank0";
-			reg = <0x1000000 0x6000000>;
+		partition@qspi-kernel-bank0 {
+			label = "qspi-kernel-bank0";
+			reg = <0x1000000 0x600000>;
 		};
-		partition@qspi-sw-bank1 {
-			label = "qspi-sw-bank1";
-			reg = <0x7000000 0x6000000>;
+		partition@qspi-rootfs-bank0 {
+			label = "qspi-rootfs-bank0";
+			reg = <0x1600000 0x5A00000>;
+		};
+		partition@qspi-kernel-bank1 {
+			label = "qspi-kernel-bank1";
+			reg = <0x7000000 0x600000>;
+		};
+		partition@qspi-rootfs-bank1 {
+			label = "qspi-rootfs-bank1";
+			reg = <0x7600000 0x5A00000>;
 		};
 		partition@qspi-jffs2 {
 			label = "qspi-fs";

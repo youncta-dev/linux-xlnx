@@ -30,7 +30,7 @@
 
 	memory {
 		device_type = "memory";
-		reg = <0x0 0x20000000>;
+		reg = <0x0 0x10000000>;
 	};
 
     yemacl@44000000 {
@@ -38,6 +38,8 @@
 	    status = "okay";
 	    reg = <0x44000000 0x10000 0x45000000 0x20000>;
         local-mac-address = [88 77 66 55 44 33];
+		interrupt-parent = <&intc>;
+		interrupts = <0 29 1>; 
     };
 
     temac@47000000 {
@@ -259,6 +261,42 @@
 
 &can1 {
        status = "okay";
+};
+
+&adc {
+       status = "okay";
+
+	   xlnx,channels {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			channel@0 {
+				reg = <0>;
+			};
+			channel@1 {
+				reg = <1>;
+			};
+			channel@2 {
+				reg = <2>;
+			};
+			channel@3 {
+				reg = <3>;
+			};
+			channel@4 {
+				reg = <4>;
+			};
+			channel@5 {
+				reg = <5>;
+			};
+			channel@6 {
+				reg = <6>;
+			};
+			channel@7 {
+				reg = <7>;
+			};
+			channel@8 {
+				reg = <8>;
+			};
+	   };
 };
 
 

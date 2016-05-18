@@ -26,6 +26,7 @@
 #include <linux/of_net.h>
 #include <linux/phy.h>
 #include <linux/interrupt.h>
+#include <linux/debugfs.h>
 
 #define DRIVER_NAME "youncta_emaclite"
 
@@ -49,6 +50,9 @@
 
 /* BUFFER_ALIGN(adr) calculates the number of bytes to the next alignment. */
 #define BUFFER_ALIGN(adr) ((ALIGNMENT - ((u32) adr)) % ALIGNMENT)
+
+#define YEMAC_DEBUG_DUMP_TX     0x00000001
+#define YEMAC_DEBUG_DUMP_RX     0x00000002
 
 /**
  * struct net_local - Our private per device data
@@ -93,25 +97,27 @@ struct net_local {
 	bool has_mdio;
 };
 
+
 typedef struct { 
-    volatile u8     mac[6];
-    volatile u16    vlan;
-    volatile u8     mac_mask[6];
-    volatile u16    vlan_mask;
-    volatile u32    info;
-    volatile u32    pad[3];
+    volatile u8    mach[4]; // 0: mac23_16, 1: mac31_24, 2: mac39_32, 3: mac47_40
+    volatile u16   vlan;
+    volatile u8    macl[2]; // 0: mac07_00, 1: mac15_08
+    volatile u8    mach_mask[4];
+    volatile u16   vlan_mask;
+    volatile u8    macl_mask[2];
+    volatile u32   info;
+    volatile u32   pad[3];
 } __attribute__((packed)) tcam_entry; 
 
-
 struct timer_list rx_timer;
+
+static struct dentry *dir = 0;
+
+static u32 yemac_debug = 0;
 
 /*************************/
 /* MacLite driver calls */
 /*************************/
-
-
-
-
 
 
 /**
@@ -185,14 +191,15 @@ static int yemaclite_send_data(struct net_local *drvdata, u8 *data,
     if (drvdata->tx_frame_off >= YEL_MAX_BUFFER_SIZE)
         drvdata->tx_frame_off = 0;
 
-    for (i = 0; i < byte_count; i++) 
+    if (yemac_debug & YEMAC_DEBUG_DUMP_TX)
     {
-      p += sprintf(p, "%02x ", data[i]);
-    }
+        for (i = 0; i < byte_count; i++) 
+        {
+            p += sprintf(p, "%02x ", data[i]);
+        }
         
-    printk(KERN_INFO "TX: %s\n", msg);
-
-    printk(KERN_INFO "Frame sent len %d\n", byte_count);
+        printk(KERN_INFO "Len: %d TX: %s\n", byte_count, msg);
+    }
 
 	return 0;
 }
@@ -224,7 +231,7 @@ static u16 yemaclite_recv_data(struct net_local *drvdata, u8 *data)
     if (*((u32*) addr) & 0x80000000) {
 
         length = (*((u32*) addr) & 0x1FFF);
-        printk(KERN_INFO "Got frame at %x with len %d\n", addr, length);
+
         memcpy(data, (u8*) addr + YEL_BD_LEN + YEL_FRAME_TRAIL_PADDING, length);
 
          // Invalidate bd
@@ -235,13 +242,15 @@ static u16 yemaclite_recv_data(struct net_local *drvdata, u8 *data)
         if (drvdata->rx_frame_off >= YEL_MAX_BUFFER_SIZE)
             drvdata->rx_frame_off = 0;
 
-        for (i = 0; i < length; i++) 
+        if (yemac_debug & YEMAC_DEBUG_DUMP_RX)
         {
-            p += sprintf(p, "%02x ", data[i]);
+            for (i = 0; i < length; i++) 
+            {
+                p += sprintf(p, "%02x ", data[i]);
+            }
+
+            printk(KERN_INFO "Len %d RX: %s\n", length, msg);
         }
-        
-        printk(KERN_INFO "RX: %s\n", msg);
-    
 
     }
 
@@ -265,16 +274,48 @@ static void yemaclite_update_address(struct net_local *drvdata,
 	void __iomem *reg_area = drvdata->base_addr;
 
 
+typedef struct { 
+    volatile u8    mach[4]; // 0: mac23_16, 1: mac31_24, 2: mac39_32, 3: mac47_40
+    volatile u16   vlan;
+    volatile u8    macl[2]; // 0: mac07_00, 1: mac15_08
+    volatile u8    mach_mask[4];
+    volatile u16   vlan_mask;
+    volatile u8    macl_mask[2];
+    volatile u32   info;
+    volatile u32   pad[3];
+} __attribute__((packed)) tcam_entry; 
+
+    tcam_entry t;
+    u8* pt = (u8*) &t;
+
+    t.mach[3] = 0x98;
+    t.mach[2] = 0x97;
+    t.mach[1] = 0x96;
+    t.mach[0] = 0x95;
+    t.macl[1] = 0x94;
+    t.macl[0] = 0x93;
+
+    t.mach_mask[3] = 0xFF;
+    t.mach_mask[2] = 0xFF;
+    t.mach_mask[1] = 0xFF;
+    t.mach_mask[0] = 0xFF;
+    t.macl_mask[1] = 0xFF;
+    t.macl_mask[0] = 0xFF;
+
+    t.vlan = 0x1211;
+    t.vlan_mask = 0x0000;
+    t.info = 0x35;
+
     *(u32*) (reg_area + 0x1004) = 0x1;
 	*(u32*) (reg_area + 0x1204) = 0x1;
 	*(u32*) (reg_area + 0x1304) = 0x1;
-	*(u32*) (reg_area + 0x0010) = 0x1;
+	*(u32*) (reg_area + 0x4004) = 0x1;
 
-	*(u32*) (reg_area + 0xC000) = 0x80818283; //ntohl(*((u32*) address_ptr));
-	*(u32*) (reg_area + 0xC004) = ntohl(*((u16*) address_ptr + 4)) << 16;
-	*(u32*) (reg_area + 0xC008) = 0xFFFFFFFF;
-	*(u32*) (reg_area + 0xC00C) = 0xFFFF0000;
-	*(u32*) (reg_area + 0xC010) = 0x35;
+	*(u32*) (reg_area + 0xC000) = *((u32*) pt); 
+	*(u32*) (reg_area + 0xC004) = *((u32*) (pt+4));
+	*(u32*) (reg_area + 0xC008) = *((u32*) (pt+8));
+	*(u32*) (reg_area + 0xC00C) = *((u32*) (pt+12));
+	*(u32*) (reg_area + 0xC010) = *((u32*) (pt+16));
 
 }
 
@@ -431,9 +472,9 @@ static void yemaclite_rx_handler(struct net_device *dev)
 void rx_timer_callback( unsigned long data )
 {
   
-  yemaclite_rx_handler((struct net_device *) data);
+  //yemaclite_rx_handler((struct net_device *) data);
 
-  rx_timer.expires = jiffies + msecs_to_jiffies(50);
+  rx_timer.expires = jiffies + msecs_to_jiffies(100);
   add_timer (&rx_timer); /* setup the timer again */
 }
 
@@ -447,8 +488,9 @@ void rx_timer_callback( unsigned long data )
  */
 static irqreturn_t yemaclite_interrupt(int irq, void *dev_id)
 {
+	struct net_device *dev = dev_id;
 
-
+    yemaclite_rx_handler(dev);
 
 	return IRQ_HANDLED;
 }
@@ -558,7 +600,7 @@ static void yemaclite_adjust_link(struct net_device *ndev)
 static int yemaclite_open(struct net_device *dev)
 {
 	struct net_local *lp = netdev_priv(dev);
-    int ret = -1;
+    int ret = -1, retval = -1;
 
 	/* Just to be safe, stop the device first */
 	yemaclite_disable_interrupts(lp);
@@ -597,16 +639,12 @@ static int yemaclite_open(struct net_device *dev)
 	yemaclite_update_address(lp, dev->dev_addr);
 
 	/* Grab the IRQ */
-//	retval = request_irq(dev->irq, yemaclite_interrupt, 0, dev->name, dev);
-//	if (retval) {
-//		dev_err(&lp->ndev->dev, "Could not allocate interrupt %d\n",
-//			dev->irq);
-//		if (lp->phy_dev)
-//			phy_disconnect(lp->phy_dev);
-//		lp->phy_dev = NULL;
-//
-//		return retval;
-//	}
+	retval = request_irq(dev->irq, yemaclite_interrupt, 0, dev->name, dev);
+	if (retval) {
+		dev_err(&lp->ndev->dev, "Could not allocate interrupt %d\n",
+			dev->irq);
+		return retval;
+	}
 
 	/* Enable Interrupts */
 	yemaclite_enable_interrupts(lp);
@@ -617,7 +655,7 @@ static int yemaclite_open(struct net_device *dev)
 
     init_timer (&rx_timer);
     rx_timer.function = rx_timer_callback;
-    rx_timer.expires = jiffies + msecs_to_jiffies(50) ;
+    rx_timer.expires = jiffies + msecs_to_jiffies(100) ;
     rx_timer.data = dev;
 
     add_timer (&rx_timer);
@@ -733,6 +771,7 @@ static struct net_device_ops yemaclite_netdev_ops;
 static int yemaclite_of_probe(struct platform_device *ofdev)
 {
 	struct resource *res;
+    struct dentry *junk;
 	struct net_device *ndev = NULL;
 	struct net_local *lp = NULL;
 	struct device *dev = &ofdev->dev;
@@ -754,16 +793,6 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	lp = netdev_priv(ndev);
 	lp->ndev = ndev;
 
-	/* Get IRQ for the device */
-//	res = platform_get_resource(ofdev, IORESOURCE_IRQ, 0);
-//	if (!res) {
-//		dev_err(dev, "no IRQ found\n");
-//		rc = -ENXIO;
-//		goto error;
-//	}
-
-//	ndev->irq = res->start;
-
 	res = platform_get_resource(ofdev, IORESOURCE_MEM, 0);
 	lp->base_addr = devm_ioremap_resource(&ofdev->dev, res);
 	if (IS_ERR(lp->base_addr)) {
@@ -781,6 +810,18 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 
 
 	ndev->mem_end = res->end;
+
+	/* Get IRQ for the device */
+	res = platform_get_resource(ofdev, IORESOURCE_IRQ, 0);
+	if (!res) {
+		dev_err(dev, "no IRQ found\n");
+		rc = -ENXIO;
+		goto error;
+	}
+
+	ndev->irq = res->start;
+
+
 
 	spin_lock_init(&lp->reset_lock);
 	lp->rx_frame_buf = lp->bd_area;
@@ -833,6 +874,19 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 		 "Youncta MacLite at 0x%08X mapped to 0x%08X, irq=%d\n",
 		 (unsigned int __force)ndev->mem_start,
 		 (unsigned int __force)lp->base_addr, ndev->irq);
+
+
+    dir = debugfs_create_dir("yemac", 0);
+    if (!dir) {
+        printk(KERN_INFO "debugfs: cannot create /sys/kernel/debug/yemac\n");
+    }
+    
+    
+    junk = debugfs_create_u32("yemac_debug", 0666, dir, &yemac_debug);
+    if (!junk) {
+        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/yemac/yemac_debug\n");
+    }
+    
 	return 0;
 
 error:

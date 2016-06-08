@@ -60,6 +60,7 @@
 #define PORT1_BASE	0x180
 
 /* Port Control Register Bit Definitions */
+#define PORT_SCTL_SPD_GEN3	(0x3 << 4)
 #define PORT_SCTL_SPD_GEN2	(0x2 << 4)
 #define PORT_SCTL_SPD_GEN1	(0x1 << 4)
 #define PORT_SCTL_IPM		(0x3 << 8)
@@ -69,6 +70,10 @@
 #define NR_PORTS	2
 #define DRV_NAME	"ahci-ceva"
 #define CEVA_FLAG_BROKEN_GEN2	1
+
+static unsigned int rx_watermark = PTC_RX_WM_VAL;
+module_param(rx_watermark, uint, 0);
+MODULE_PARM_DESC(rx_watermark, "RxWaterMark value (0 - 0x80)");
 
 struct ceva_ahci_priv {
 	struct platform_device *ahci_pdev;
@@ -80,8 +85,26 @@ struct ceva_ahci_priv {
 	int flags;
 };
 
+static unsigned int ceva_ahci_read_id(struct ata_device *dev,
+					struct ata_taskfile *tf, u16 *id)
+{
+	u32 err_mask;
+
+	err_mask = ata_do_dev_read_id(dev, tf, id);
+	if (err_mask)
+		return err_mask;
+	/*
+	 * Since CEVA controller does not support device sleep feature, we
+	 * need to clear DEVSLP (bit 8) in word78 of the IDENTIFY DEVICE data.
+	 */
+	id[ATA_ID_FEATURE_SUPP] &= cpu_to_le16(~(1 << 8));
+
+	return 0;
+}
+
 static struct ata_port_operations ahci_ceva_ops = {
 	.inherits = &ahci_platform_ops,
+	.read_id = ceva_ahci_read_id,
 };
 
 static const struct ata_port_info ahci_ceva_port_info = {
@@ -133,11 +156,11 @@ static void ahci_ceva_setup(struct ahci_host_priv *hpriv)
 		writel(cevapriv->pp5c[i], mmio + AHCI_VEND_PP5C);
 
 		/* Rx Watermark setting  */
-		tmp = PTC_RX_WM_VAL | PTC_RSVD;
+		tmp = rx_watermark | PTC_RSVD;
 		writel(tmp, mmio + AHCI_VEND_PTC);
 
-		/* Default to Gen 2 Speed and Gen 1 if Gen2 is broken */
-		tmp = PORT_SCTL_SPD_GEN2 | PORT_SCTL_IPM;
+		/* Default to Gen 3 Speed and Gen 1 if Gen2 is broken */
+		tmp = PORT_SCTL_SPD_GEN3 | PORT_SCTL_IPM;
 		if (cevapriv->flags & CEVA_FLAG_BROKEN_GEN2)
 			tmp = PORT_SCTL_SPD_GEN1 | PORT_SCTL_IPM;
 		writel(tmp, mmio + PORT_SCR_CTL + PORT_BASE + PORT_OFFSET * i);

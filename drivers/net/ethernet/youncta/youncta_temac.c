@@ -81,8 +81,10 @@ static int temac_of_probe(struct platform_device *ofdev)
 	spin_lock_init(&lp->reset_lock);
 
     addr = lp->base_addr;
-    *(u32*) (addr  + 0x0404) = 0xd0000000;
+    *(u32*) (addr  + 0x0404) = 0xdb000000;
+    *(u32*) (addr  + 0x0404) = 0x5b000000;
     *(u32*) (addr  + 0x0408) = 0xd0000000;
+    *(u32*) (addr  + 0x0408) = 0x50000000;
     *(u32*) (addr  + 0x0500) = 0x00000058;
     *(u32*) (addr  + 0x0508) = 0x00001140;
     *(u32*) (addr  + 0x0504) = 0x00004800;

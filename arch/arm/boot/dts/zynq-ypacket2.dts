@@ -33,6 +33,71 @@
 		reg = <0x0 0x10000000>;
 	};
 
+
+
+    xadc@43ce0000 {
+		    compatible = "xlnx,axi-xadc-1.00.a";
+		    reg = <0x43ce0000 0x10000>;
+		    interrupts = <0 53 4>;
+		    interrupt-parent = <&intc>;
+		    clocks = <&clkc 15>;
+
+		    xlnx,channels {
+			    #address-cells = <1>;
+			    #size-cells = <0>;
+			    channel@0 {
+				    reg = <0>;
+			    };
+			    channel@1 {
+				    reg = <1>;
+			    };
+			    channel@2 {
+				    reg = <2>;
+			    };
+			    channel@3 {
+				    reg = <3>;
+			    };
+			    channel@4 {
+				    reg = <4>;
+			    };
+			    channel@5 {
+				    reg = <5>;
+			    };
+			    channel@6 {
+				    reg = <6>;
+			    };
+			    channel@7 {
+				    reg = <7>;
+			    };
+			    channel@8 {
+				    reg = <8>;
+			    };
+			    channel@9 {
+				    reg = <9>;
+			    };
+			    channel@10 {
+				    reg = <10>;
+			    };
+			    channel@11 {
+				    reg = <11>;
+			    };
+			    channel@12 {
+				    reg = <12>;
+			    };
+			    channel@13 {
+				    reg = <13>;
+			    };
+			    channel@14 {
+				    reg = <14>;
+			    };
+			    channel@15 {
+				    reg = <15>;
+			    };
+			    channel@16 {
+				    reg = <16>;
+			    };
+		    };
+    };
     yemacl@44000000 {
 	    compatible = "yemacl";
 	    status = "okay";
@@ -263,40 +328,11 @@
        status = "okay";
 };
 
+
+
 &adc {
        status = "okay";
 
-	   xlnx,channels {
-			#address-cells = <1>;
-			#size-cells = <0>;
-			channel@0 {
-				reg = <0>;
-			};
-			channel@1 {
-				reg = <1>;
-			};
-			channel@2 {
-				reg = <2>;
-			};
-			channel@3 {
-				reg = <3>;
-			};
-			channel@4 {
-				reg = <4>;
-			};
-			channel@5 {
-				reg = <5>;
-			};
-			channel@6 {
-				reg = <6>;
-			};
-			channel@7 {
-				reg = <7>;
-			};
-			channel@8 {
-				reg = <8>;
-			};
-	   };
 };
 
 

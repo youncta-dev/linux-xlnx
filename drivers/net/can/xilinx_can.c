@@ -686,7 +686,7 @@ static int xcan_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 		netif_stop_queue(ndev);
 
     if (dump_tx)
-        printk(KERN_ALERT "->id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", cf->can_id, cf->can_dlc, cf->data[0],
+        printk(KERN_ALERT "->id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", cf->can_id, dlc, cf->data[0],
                                                                                                               cf->data[1],
                                                                                                               cf->data[2],
                                                                                                               cf->data[3],

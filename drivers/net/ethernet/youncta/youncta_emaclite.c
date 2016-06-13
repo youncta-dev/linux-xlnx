@@ -238,9 +238,6 @@ static u16 yemaclite_recv_data(struct net_local *drvdata, u8 *data)
         *((u32*) addr) &= 0x7FFFFFFF;
 	    wmb();
 
-        drvdata->rx_frame_off += YEL_MAX_FRAME_LEN;
-        if (drvdata->rx_frame_off >= YEL_MAX_BUFFER_SIZE)
-            drvdata->rx_frame_off = 0;
 
         if (yemac_debug & YEMAC_DEBUG_DUMP_RX)
         {
@@ -426,44 +423,62 @@ static void yemaclite_rx_handler(struct net_device *dev)
 	struct sk_buff *skb;
 	unsigned int align;
 	u32 len;
+    int i = 0, frames = 0;
 
-	len = ETH_FRAME_LEN + ETH_FCS_LEN;
-	skb = netdev_alloc_skb(dev, len + ALIGNMENT);
-	if (!skb) {
-		/* Couldn't get memory. */
-		dev->stats.rx_dropped++;
-		dev_err(&lp->ndev->dev, "Could not allocate receive buffer\n");
-		return;
-	}
+	/* Determine the expected buffer address */
+	void __iomem *addr = (lp->rx_frame_buf + lp->rx_frame_off);
 
-	/*
-	 * A new skb should have the data halfword aligned, but this code is
-	 * here just in case that isn't true. Calculate how many
-	 * bytes we should reserve to get the data to start on a word
-	 * boundary */
-	align = BUFFER_ALIGN(skb->data);
-	if (align)
-		skb_reserve(skb, align);
+    
+    // while descriptor is full
+    while (*((u32*) addr) & 0x80000000) {
 
-	skb_reserve(skb, 2);
+	    len = ETH_FRAME_LEN + ETH_FCS_LEN;
+	    skb = netdev_alloc_skb(dev, len + ALIGNMENT);
+	    if (!skb) {
+		    /* Couldn't get memory. */
+		    dev->stats.rx_dropped++;
+		    dev_err(&lp->ndev->dev, "Could not allocate receive buffer\n");
+		    return;
+	    }
 
-	len = yemaclite_recv_data(lp, (u8 *) skb->data);
+	    /*
+	     * A new skb should have the data halfword aligned, but this code is
+	     * here just in case that isn't true. Calculate how many
+	     * bytes we should reserve to get the data to start on a word
+	     * boundary */
+	    align = BUFFER_ALIGN(skb->data);
+	    if (align)
+		    skb_reserve(skb, align);
 
-	if (len == 0) {
-		dev_kfree_skb_irq(skb);
-		return;
-	}
+	    skb_reserve(skb, 2);
 
-	skb_put(skb, len);	/* Tell the skb how much data we got */
+	    len = yemaclite_recv_data(lp, (u8 *) skb->data);
 
-	skb->protocol = eth_type_trans(skb, dev);
-	skb_checksum_none_assert(skb);
+	    if (len == 0) {
+		    dev_kfree_skb_irq(skb);
+		    return;
+	    }
 
-	dev->stats.rx_packets++;
-	dev->stats.rx_bytes += len;
+        lp->rx_frame_off += YEL_MAX_FRAME_LEN;
+        if (lp->rx_frame_off >= YEL_MAX_BUFFER_SIZE)
+          lp->rx_frame_off = 0;
 
-	if (!skb_defer_rx_timestamp(skb))
-		netif_rx(skb);	/* Send the packet upstream */
+        addr = (lp->rx_frame_buf + lp->rx_frame_off);
+
+	    skb_put(skb, len);	/* Tell the skb how much data we got */
+
+	    skb->protocol = eth_type_trans(skb, dev);
+	    skb_checksum_none_assert(skb);
+
+	    dev->stats.rx_packets++;
+	    dev->stats.rx_bytes += len;
+
+	    if (!skb_defer_rx_timestamp(skb))
+		    netif_rx(skb);	/* Send the packet upstream */
+
+    }
+
+
 }
 
 
@@ -780,7 +795,7 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 
 	int rc = 0;
 
-	dev_info(dev, "Youncta emaclite\n");
+	dev_info(dev, "Youncta emaclite driver\n");
 
 	/* Create an ethernet device instance */
 	ndev = alloc_etherdev(sizeof(struct net_local));

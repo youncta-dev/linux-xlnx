@@ -36,6 +36,7 @@
 #define YEL_MAX_BUFFER_SIZE         0x10000
 
 #define SIOCDEVDUMPTCAM     SIOCDEVPRIVATE
+#define SIOCDEVWRITETCAMENTRY    (SIOCDEVPRIVATE+1)
 
 #define YEL_RPLR_LENGTH_MASK	0x0000FFFF	/* Rx packet length */
 #define YEL_HEADER_OFFSET	    12		/* Offset to length field */
@@ -106,7 +107,8 @@ typedef struct {
     volatile u16   vlan_mask;
     volatile u8    macl_mask[2];
     volatile u32   info;
-    volatile u32   pad[3];
+    volatile u32   entry_num;
+    volatile u32   pad[2];
 } __attribute__((packed)) tcam_entry; 
 
 struct timer_list rx_timer;
@@ -423,7 +425,7 @@ static void yemaclite_rx_handler(struct net_device *dev)
 	struct sk_buff *skb;
 	unsigned int align;
 	u32 len;
-    int i = 0, frames = 0;
+    int i = 0; int frames = 0;
 
 	/* Determine the expected buffer address */
 	void __iomem *addr = (lp->rx_frame_buf + lp->rx_frame_off);
@@ -952,7 +954,8 @@ static int yemaclite_of_remove(struct platform_device *of_dev)
 static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
 	struct net_local *lp = netdev_priv(dev);
-    __iomem u32 *tcam_addr = lp->base_addr + 0xD000;    
+    __iomem u32 *tcam_addr_r = lp->base_addr + 0xD000;
+    __iomem u32 *tcam_addr_w = lp->base_addr + 0xC000;    
    
     tcam_entry tcam;
     int i, ret;
@@ -968,24 +971,36 @@ static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
             for (i = 0; i < 16; i++)
             {
 
-                *(p_tcam + 0) = *(tcam_addr + 0 + 8*i);
-                *(p_tcam + 1) = *(tcam_addr + 1 + 8*i);
-                *(p_tcam + 2) = *(tcam_addr + 2 + 8*i);
-                *(p_tcam + 3) = *(tcam_addr + 3 + 8*i);
-                *(p_tcam + 4) = *(tcam_addr + 4 + 8*i);
+                *(p_tcam + 0) = *(tcam_addr_r + 0 + 8*i);
+                *(p_tcam + 1) = *(tcam_addr_r + 1 + 8*i);
+                *(p_tcam + 2) = *(tcam_addr_r + 2 + 8*i);
+                *(p_tcam + 3) = *(tcam_addr_r + 3 + 8*i);
+                *(p_tcam + 4) = *(tcam_addr_r + 4 + 8*i);
                 *(p_tcam + 5) = 0;
                 *(p_tcam + 6) = 0;
                 *(p_tcam + 7) = 0;
 
-
-
                 ret = copy_to_user(data, &tcam, sizeof(tcam_entry));
+                tcam.entry_num = i;
                 data += sizeof(tcam_entry);
 
                 //printk(KERN_INFO "MAC      %02x%02x%02x%02x%02x%02x VLAN      %04x\n", tcam.mac[5], tcam.mac[4], tcam.mac[3], tcam.mac[2], tcam.mac[1], tcam.mac[0], tcam.vlan);
                 //printk(KERN_INFO "MAC MASK %02x%02x%02x%02x%02x%02x VLAN MASK %04x\n", tcam.mac_mask[5], tcam.mac_mask[4], tcam.mac_mask[3], tcam.mac_mask[2], tcam.mac_mask[1], tcam.mac_mask[0], tcam.vlan_mask);               
 
             }
+
+        break;
+        case SIOCDEVWRITETCAMENTRY:
+
+            ret = copy_from_user(&tcam, data, sizeof(tcam_entry));
+            i = tcam.entry_num;            
+
+            *(tcam_addr_w + 0 + 8*i) = *(p_tcam + 0);
+            *(tcam_addr_w + 1 + 8*i) = *(p_tcam + 1);
+            *(tcam_addr_w + 2 + 8*i) = *(p_tcam + 2);
+            *(tcam_addr_w + 3 + 8*i) = *(p_tcam + 3);
+            *(tcam_addr_w + 4 + 8*i) = *(p_tcam + 4);
+
 
         break;
         default:

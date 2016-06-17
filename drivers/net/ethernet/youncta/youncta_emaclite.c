@@ -273,49 +273,10 @@ static void yemaclite_update_address(struct net_local *drvdata,
 	void __iomem *reg_area = drvdata->base_addr;
 
 
-typedef struct { 
-    volatile u8    mach[4]; // 0: mac23_16, 1: mac31_24, 2: mac39_32, 3: mac47_40
-    volatile u16   vlan;
-    volatile u8    macl[2]; // 0: mac07_00, 1: mac15_08
-    volatile u8    mach_mask[4];
-    volatile u16   vlan_mask;
-    volatile u8    macl_mask[2];
-    volatile u32   info;
-    volatile u32   pad[3];
-} __attribute__((packed)) tcam_entry; 
-
-    tcam_entry t;
-    u8* pt = (u8*) &t;
-
-    t.mach[3] = 0x98;
-    t.mach[2] = 0x97;
-    t.mach[1] = 0x96;
-    t.mach[0] = 0x95;
-    t.macl[1] = 0x94;
-    t.macl[0] = 0x93;
-
-    t.mach_mask[3] = 0xFF;
-    t.mach_mask[2] = 0xFF;
-    t.mach_mask[1] = 0xFF;
-    t.mach_mask[0] = 0xFF;
-    t.macl_mask[1] = 0xFF;
-    t.macl_mask[0] = 0xFF;
-
-    t.vlan = 0x1211;
-    t.vlan_mask = 0x0000;
-    t.info = 0x35;
-
     *(u32*) (reg_area + 0x1004) = 0x1;
 	*(u32*) (reg_area + 0x1204) = 0x1;
 	*(u32*) (reg_area + 0x1304) = 0x1;
 	*(u32*) (reg_area + 0x4004) = 0x1;
-
-	*(u32*) (reg_area + 0xC000) = *((u32*) pt); 
-	*(u32*) (reg_area + 0xC004) = *((u32*) (pt+4));
-	*(u32*) (reg_area + 0xC008) = *((u32*) (pt+8));
-	*(u32*) (reg_area + 0xC00C) = *((u32*) (pt+12));
-	*(u32*) (reg_area + 0xC010) = *((u32*) (pt+16));
-
 }
 
 /**

@@ -35,8 +35,9 @@
 #define YEL_FRAME_TRAIL_PADDING     2
 #define YEL_MAX_BUFFER_SIZE         0x10000
 
-#define SIOCDEVDUMPTCAM     SIOCDEVPRIVATE
-#define SIOCDEVWRITETCAMENTRY    (SIOCDEVPRIVATE+1)
+#define SIOCDEVDUMPTCAM         SIOCDEVPRIVATE
+#define SIOCDEVSETTCAMENTRY     (SIOCDEVPRIVATE+1)
+#define SIOCDEVGFPLOOP          (SIOCDEVPRIVATE+2)
 
 #define YEL_RPLR_LENGTH_MASK	0x0000FFFF	/* Rx packet length */
 #define YEL_HEADER_OFFSET	    12		/* Offset to length field */
@@ -62,7 +63,7 @@
  * @tx_frame_buf:	tx frame buf start
  * @rx_frame_off:	next rx buffer to write to
  * @tx_frame_off:	next tx buffer to read from
- * @base_addr:		base address of the Maclite device
+ * @emac_base_addr:		base address of the Maclite device
  * @reset_lock:		lock used for synchronization
  * @deferred_skb:	holds an skb (for transmission at a later time) when the
  *			Tx buffer is not free
@@ -77,8 +78,9 @@ struct net_local {
 
 	struct net_device *ndev;
 
-	void __iomem *base_addr;
-	void __iomem *bd_area;
+	void __iomem *gfp_addr;
+	void __iomem *emac_base_addr;
+	void __iomem *emac_bd_area;
 
 	void __iomem *rx_frame_buf;
 	void __iomem *tx_frame_buf;
@@ -270,7 +272,7 @@ static u16 yemaclite_recv_data(struct net_local *drvdata, u8 *data)
 static void yemaclite_update_address(struct net_local *drvdata,
 				     u8 *address_ptr)
 {
-	void __iomem *reg_area = drvdata->base_addr;
+	void __iomem *reg_area = drvdata->emac_base_addr;
 
 
     *(u32*) (reg_area + 0x1004) = 0x1;
@@ -578,7 +580,7 @@ static void yemaclite_adjust_link(struct net_device *ndev)
 static int yemaclite_open(struct net_device *dev)
 {
 	struct net_local *lp = netdev_priv(dev);
-    int ret = -1, retval = -1;
+    int retval = -1;
 
 	/* Just to be safe, stop the device first */
 	yemaclite_disable_interrupts(lp);
@@ -772,17 +774,27 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	lp->ndev = ndev;
 
 	res = platform_get_resource(ofdev, IORESOURCE_MEM, 0);
-	lp->base_addr = devm_ioremap_resource(&ofdev->dev, res);
-	if (IS_ERR(lp->base_addr)) {
-		rc = PTR_ERR(lp->base_addr);
+	lp->gfp_addr = devm_ioremap_resource(&ofdev->dev, res);
+	if (IS_ERR(lp->emac_base_addr)) {
+		rc = PTR_ERR(lp->gfp_addr);
 		goto error;
 	}
+
 	ndev->mem_start = res->start;
 
+
 	res = platform_get_resource(ofdev, IORESOURCE_MEM, 1);
-	lp->bd_area = devm_ioremap_resource(&ofdev->dev, res);
-	if (IS_ERR(lp->bd_area)) {
-		rc = PTR_ERR(lp->bd_area);
+	lp->emac_base_addr = devm_ioremap_resource(&ofdev->dev, res);
+	if (IS_ERR(lp->emac_base_addr)) {
+		rc = PTR_ERR(lp->emac_base_addr);
+		goto error;
+	}
+
+
+	res = platform_get_resource(ofdev, IORESOURCE_MEM, 2);
+	lp->emac_bd_area = devm_ioremap_resource(&ofdev->dev, res);
+	if (IS_ERR(lp->emac_bd_area)) {
+		rc = PTR_ERR(lp->emac_bd_area);
 		goto error;
 	}
 
@@ -802,9 +814,9 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 
 
 	spin_lock_init(&lp->reset_lock);
-	lp->rx_frame_buf = lp->bd_area;
+	lp->rx_frame_buf = lp->emac_bd_area;
 	lp->rx_frame_off = 0x0;
-	lp->tx_frame_buf = lp->bd_area + YEL_MAX_BUFFER_SIZE;
+	lp->tx_frame_buf = lp->emac_bd_area + YEL_MAX_BUFFER_SIZE;
 	lp->tx_frame_off = 0x0;
 
 
@@ -817,7 +829,7 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	else
 		dev_warn(dev, "No MAC address found\n");
 
-    reg_area = lp->base_addr;
+    reg_area = lp->emac_base_addr;
 
 	/* Set the MAC address in the MacLite device */
 	yemaclite_update_address(lp, ndev->dev_addr);
@@ -851,7 +863,7 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	dev_info(dev,
 		 "Youncta MacLite at 0x%08X mapped to 0x%08X, irq=%d\n",
 		 (unsigned int __force)ndev->mem_start,
-		 (unsigned int __force)lp->base_addr, ndev->irq);
+		 (unsigned int __force)lp->emac_base_addr, ndev->irq);
 
 
     dir = debugfs_create_dir("yemac", 0);
@@ -915,20 +927,24 @@ static int yemaclite_of_remove(struct platform_device *of_dev)
 static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 {
 	struct net_local *lp = netdev_priv(dev);
-    __iomem u32 *tcam_addr_r = lp->base_addr + 0xD000;
-    __iomem u32 *tcam_addr_w = lp->base_addr + 0xC000;    
+    __iomem u32 *tcam_addr_r = lp->emac_base_addr + 0xD000;
+    __iomem u32 *tcam_addr_w = lp->emac_base_addr + 0xC000;    
    
-    tcam_entry tcam;
     int i, ret;
 
-    u32* p_tcam = (u32*) &tcam;
 
-    u8* data = (u8*) (ifr->ifr_data);
+    u8* data; 
 
     switch (cmd) 
     {
         case SIOCDEVDUMPTCAM:
-            
+        {
+            tcam_entry tcam;
+            u32* p_tcam = (u32*) &tcam;
+
+
+            data = (u8*) (ifr->ifr_data);
+
             for (i = 0; i < 16; i++)
             {
 
@@ -949,9 +965,15 @@ static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
                 //printk(KERN_INFO "MAC MASK %02x%02x%02x%02x%02x%02x VLAN MASK %04x\n", tcam.mac_mask[5], tcam.mac_mask[4], tcam.mac_mask[3], tcam.mac_mask[2], tcam.mac_mask[1], tcam.mac_mask[0], tcam.vlan_mask);               
 
             }
-
+        }
         break;
-        case SIOCDEVWRITETCAMENTRY:
+        case SIOCDEVSETTCAMENTRY:
+        {
+            tcam_entry tcam;
+            u32* p_tcam = (u32*) &tcam;
+
+
+            data = (u8*) (ifr->ifr_data);
 
             ret = copy_from_user(&tcam, data, sizeof(tcam_entry));
             i = tcam.entry_num;            
@@ -962,7 +984,34 @@ static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
             *(tcam_addr_w + 3 + 8*i) = *(p_tcam + 3);
             *(tcam_addr_w + 4 + 8*i) = *(p_tcam + 4);
 
-
+        }
+        break;
+        case SIOCDEVGFPLOOP:
+        {
+           __iomem u32 *gfp_addr = lp->gfp_addr;
+           int  action = 0;
+           data = (u8*) (ifr->ifr_data);
+           get_user(action, (int *)data);
+            
+           switch (action) 
+           {
+                case 0:
+                    *gfp_addr = 0x00000000;
+                break;
+                case 1:
+                    // loop and mac
+                    *gfp_addr = 0x0000000C;
+                break;
+                case 2:
+                    // just a loop
+                    *gfp_addr = 0x00000008;
+                break;
+                default:
+                    *gfp_addr = 0x00000000;
+                break;
+           }
+            
+        }
         break;
         default:
         break;

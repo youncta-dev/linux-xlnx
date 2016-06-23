@@ -35,9 +35,10 @@
 
 
 
-    xadc@43ce0000 {
+    xadc@43c70000 {
+            status="disabled";
 		    compatible = "xlnx,axi-xadc-1.00.a";
-		    reg = <0x43ce0000 0x10000>;
+		    reg = <0x43c70000 0x10000>;
 		    interrupts = <0 53 4>;
 		    interrupt-parent = <&intc>;
 		    clocks = <&clkc 15>;

@@ -171,7 +171,7 @@ static int yemaclite_send_data(struct net_local *drvdata, u8 *data,
 
 	void __iomem *addr;
     int i;
-    char msg[1024] = { 0 };
+    char msg[256] = { 0 };
     char* p = msg;
 
 	/* Determine the expected Tx buffer address */
@@ -187,24 +187,27 @@ static int yemaclite_send_data(struct net_local *drvdata, u8 *data,
     {
         printk(KERN_INFO "TX descriptor not available\n");
     }   
-    *(u32*)(addr) = 0x80000000 | (unsigned int) (byte_count);
-	wmb();
-
-    drvdata->tx_frame_off += YEL_MAX_FRAME_LEN;
-
-    if (drvdata->tx_frame_off >= YEL_MAX_BUFFER_SIZE)
-        drvdata->tx_frame_off = 0;
-
-    if (yemac_debug & YEMAC_DEBUG_DUMP_TX)
+    else
     {
-        for (i = 0; i < byte_count; i++) 
-        {
-            p += sprintf(p, "%02x ", data[i]);
-        }
-        
-        printk(KERN_INFO "Len: %d TX: %s\n", byte_count, msg);
-    }
+        *(u32*)(addr) = 0x80000000 | (unsigned int) (byte_count);
+	    wmb();
 
+        drvdata->tx_frame_off += YEL_MAX_FRAME_LEN;
+
+        if (drvdata->tx_frame_off >= YEL_MAX_BUFFER_SIZE)
+            drvdata->tx_frame_off = 0;
+
+        if (yemac_debug & YEMAC_DEBUG_DUMP_TX)
+        {
+            int len = (byte_count < 64)? byte_count : 64;
+            for (i = 0; i < len; i++) 
+            {
+                p += sprintf(p, "%02x", data[i]);
+            }
+            
+            printk(KERN_INFO "Len: %d TX: %s\n", byte_count, msg);
+        }
+    }
 	return 0;
 }
 
@@ -224,7 +227,7 @@ static u16 yemaclite_recv_data(struct net_local *drvdata, u8 *data)
     int i = 0;
 	u16 length = 0;
 
-    char msg[1024] = { 0 };
+    char msg[256] = { 0 };
     char* p = msg;
 
 	/* Determine the expected buffer address */
@@ -245,9 +248,10 @@ static u16 yemaclite_recv_data(struct net_local *drvdata, u8 *data)
 
         if (yemac_debug & YEMAC_DEBUG_DUMP_RX)
         {
-            for (i = 0; i < length; i++) 
+            int len  = (length < 64)? length : 64;
+            for (i = 0; i < len; i++) 
             {
-                p += sprintf(p, "%02x ", data[i]);
+                p += sprintf(p, "%02x", data[i]);
             }
 
             printk(KERN_INFO "Len %d RX: %s\n", length, msg);
@@ -861,7 +865,7 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	}
 
 	dev_info(dev,
-		 "Youncta MacLite at 0x%08X mapped to 0x%08X, irq=%d\n",
+		 "Youncta EmacLite at 0x%08X mapped to 0x%08X, irq=%d\n",
 		 (unsigned int __force)ndev->mem_start,
 		 (unsigned int __force)lp->emac_base_addr, ndev->irq);
 
@@ -876,7 +880,7 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
     if (!junk) {
         printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/yemac/yemac_debug\n");
     }
-    
+     
 	return 0;
 
 error:

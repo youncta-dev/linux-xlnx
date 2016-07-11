@@ -64,6 +64,7 @@ static int temac_of_probe(struct platform_device *ofdev)
     void __iomem *addr; 
 
 	int rc = 0;
+    u16 phy_status = 0;
 
 	dev_info(dev, "Device Tree Probing\n");
 
@@ -102,12 +103,10 @@ static int temac_of_probe(struct platform_device *ofdev)
     }
     while (((*(u32*) (addr+0x050C)) & 0x10000) != 0x10000);
 
-    *(u32*) (addr  + 0x0504) = 0x00018800;
 
-    do {
-        udelay(1000);
-    }
-    while (((*(u32*) (addr+0x050C)) & 0x10000) != 0x10000);
+    mdelay(1000);
+
+    // Reading two times status register to check link up
 
     *(u32*) (addr  + 0x0504) = 0x00018800;
 
@@ -116,7 +115,15 @@ static int temac_of_probe(struct platform_device *ofdev)
     }
     while (((*(u32*) (addr+0x050C)) & 0x10000) != 0x10000);
 
-    printk(KERN_INFO "Status register %x\n", *(u32*) (addr  + 0x050c));
+    *(u32*) (addr  + 0x0504) = 0x00018800;
+
+    do {
+        udelay(1000);
+    }
+    while (((*(u32*) (addr+0x050C)) & 0x10000) != 0x10000);
+
+    phy_status = (*(u32*) (addr  + 0x050c)) & 0xffff;
+    printk(KERN_INFO "Status register %x, link is %d\n", phy_status, (phy_status & 0x0004) != 0);
 
 error:
 

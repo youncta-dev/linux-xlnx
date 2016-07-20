@@ -999,16 +999,17 @@ static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
             
            switch (action) 
            {
-                case 0:
-                    *gfp_addr = 0x00000000;
+                case 1:  // loop
+                    *gfp_addr |=  0x00000008;
                 break;
-                case 1:
-                    // loop and mac
-                    *gfp_addr = 0x0000000C;
+                case 2:  // no loop
+                    *gfp_addr &= ~0x00000008;
                 break;
-                case 2:
-                    // just a loop
-                    *gfp_addr = 0x00000008;
+                case 3: // mac swap
+                    *gfp_addr |= 0x00000004;
+                break;
+                case 4: // no mac swap
+                    *gfp_addr &= ~0x00000004;
                 break;
                 default:
                     *gfp_addr = 0x00000000;

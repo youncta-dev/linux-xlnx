@@ -441,6 +441,9 @@ static int xcan_set_bittiming(struct net_device *ndev)
 		   priv->read_reg(priv, XCAN_F_BRPR_OFFSET),
 		   priv->read_reg(priv, XCAN_F_BTR_OFFSET));
 
+	netdev_dbg(ndev, "SJW=0x%02x BRP=0x%08x, PROP=0x%08x SEG1=0x%08x SEG2=0x%08x\n", bt->sjw, bt->brp, bt->prop_seg, bt->phase_seg1, bt->phase_seg2);
+
+
 	return 0;
 }
 

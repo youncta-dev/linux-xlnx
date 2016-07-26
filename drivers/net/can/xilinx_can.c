@@ -588,6 +588,7 @@ static int xcan_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 	u32 id, dlc, data[2] = {0, 0};
 	u32 buffnr, ramoff, dwindex = 0, i, trrval;
+    struct timeval tv;
 
 	if (can_dropped_invalid_skb(ndev, skb))
 		return NETDEV_TX_OK;
@@ -688,8 +689,12 @@ static int xcan_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 	if ((priv->tx_head - priv->tx_tail) == priv->tx_max)
 		netif_stop_queue(ndev);
 
-    if (dump_tx)
-        printk(KERN_ALERT "->id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", cf->can_id, cf->len, cf->data[0],
+    
+
+
+    if (dump_tx) {
+        do_gettimeofday(&tv);
+        printk_deferred(KERN_ALERT "-> %10lu id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", tv.tv_usec, cf->can_id, cf->len, cf->data[0],
                                                                                                               cf->data[1],
                                                                                                               cf->data[2],
                                                                                                               cf->data[3],
@@ -698,6 +703,7 @@ static int xcan_start_xmit(struct sk_buff *skb, struct net_device *ndev)
                                                                                                               cf->data[6],
                                                                                                               cf->data[7]
                                                                                                             );
+    }
 
 	return NETDEV_TX_OK;
 }
@@ -719,6 +725,7 @@ static int xcan_rx(struct net_device *ndev)
 	struct can_frame *cf;
 	struct sk_buff *skb;
 	u32 id_xcan, dlc, data[2] = {0, 0};
+    struct timeval tv;
 
 	/* Read a frame from Xilinx zynq CANPS */
 	id_xcan = priv->read_reg(priv, XCAN_RXFIFO_ID_OFFSET);
@@ -766,8 +773,10 @@ static int xcan_rx(struct net_device *ndev)
 	stats->rx_packets++;
 	netif_receive_skb(skb);
 
-    if (dump_rx)
-        printk(KERN_ALERT "<-id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", cf->can_id, cf->can_dlc, cf->data[0],
+
+    if (dump_rx) {
+        do_gettimeofday(&tv);
+        printk_deferred(KERN_ALERT "<- %10lu id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", tv.tv_usec, cf->can_id, cf->can_dlc, cf->data[0],
                                                                                                               cf->data[1],
                                                                                                               cf->data[2],
                                                                                                               cf->data[3],
@@ -776,7 +785,7 @@ static int xcan_rx(struct net_device *ndev)
                                                                                                               cf->data[6],
                                                                                                               cf->data[7]
                                                                                                             );
-
+    }
 	return 1;
 }
 

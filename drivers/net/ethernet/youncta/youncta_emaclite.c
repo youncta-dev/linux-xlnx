@@ -996,7 +996,7 @@ static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
            int  action = 0;
            data = (u8*) (ifr->ifr_data);
            get_user(action, (int *)data);
-            
+           printk("gfp action %d\n", action);
            switch (action) 
            {
                 case 1:  // loop

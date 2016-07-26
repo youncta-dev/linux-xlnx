@@ -78,7 +78,6 @@ struct net_local {
 
 	struct net_device *ndev;
 
-	void __iomem *gfp_addr;
 	void __iomem *emac_base_addr;
 	void __iomem *emac_bd_area;
 
@@ -392,7 +391,7 @@ static void yemaclite_rx_handler(struct net_device *dev)
 	struct sk_buff *skb;
 	unsigned int align;
 	u32 len;
-    int i = 0; int frames = 0;
+
 
 	/* Determine the expected buffer address */
 	void __iomem *addr = (lp->rx_frame_buf + lp->rx_frame_off);
@@ -761,7 +760,7 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	struct device *dev = &ofdev->dev;
 	const void *mac_address;
 	void __iomem *reg_area;
-
+    char buf[32] = { 0 };
 	int rc = 0;
 
 	dev_info(dev, "Youncta emaclite driver\n");
@@ -777,25 +776,17 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	lp = netdev_priv(ndev);
 	lp->ndev = ndev;
 
+
 	res = platform_get_resource(ofdev, IORESOURCE_MEM, 0);
-	lp->gfp_addr = devm_ioremap_resource(&ofdev->dev, res);
-	if (IS_ERR(lp->emac_base_addr)) {
-		rc = PTR_ERR(lp->gfp_addr);
-		goto error;
-	}
-
-	ndev->mem_start = res->start;
-
-
-	res = platform_get_resource(ofdev, IORESOURCE_MEM, 1);
 	lp->emac_base_addr = devm_ioremap_resource(&ofdev->dev, res);
 	if (IS_ERR(lp->emac_base_addr)) {
 		rc = PTR_ERR(lp->emac_base_addr);
 		goto error;
 	}
 
+	ndev->mem_start = res->start;
 
-	res = platform_get_resource(ofdev, IORESOURCE_MEM, 2);
+	res = platform_get_resource(ofdev, IORESOURCE_MEM, 1);
 	lp->emac_bd_area = devm_ioremap_resource(&ofdev->dev, res);
 	if (IS_ERR(lp->emac_bd_area)) {
 		rc = PTR_ERR(lp->emac_bd_area);
@@ -824,7 +815,7 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 	lp->tx_frame_off = 0x0;
 
 
-    printk(KERN_INFO, "rx bd %x, tx db %x\n", lp->rx_frame_buf, lp->tx_frame_buf);
+    printk(KERN_INFO "rx bd %x, tx db %x\n", (uint32_t)  lp->rx_frame_buf, (uint32_t) lp->tx_frame_buf);
 	mac_address = of_get_mac_address(ofdev->dev.of_node);
 
 	if (mac_address)
@@ -869,8 +860,9 @@ static int yemaclite_of_probe(struct platform_device *ofdev)
 		 (unsigned int __force)ndev->mem_start,
 		 (unsigned int __force)lp->emac_base_addr, ndev->irq);
 
+    sprintf(buf, "yemac_%08x", (uint32_t) (ndev->mem_start));
 
-    dir = debugfs_create_dir("yemac", 0);
+    dir = debugfs_create_dir(buf, 0);
     if (!dir) {
         printk(KERN_INFO "debugfs: cannot create /sys/kernel/debug/yemac\n");
     }
@@ -990,34 +982,7 @@ static int yemaclite_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 
         }
         break;
-        case SIOCDEVGFPLOOP:
-        {
-           __iomem u32 *gfp_addr = lp->gfp_addr;
-           int  action = 0;
-           data = (u8*) (ifr->ifr_data);
-           get_user(action, (int *)data);
-           printk("gfp action %d\n", action);
-           switch (action) 
-           {
-                case 1:  // loop
-                    *gfp_addr |=  0x00000008;
-                break;
-                case 2:  // no loop
-                    *gfp_addr &= ~0x00000008;
-                break;
-                case 3: // mac swap
-                    *gfp_addr |= 0x00000004;
-                break;
-                case 4: // no mac swap
-                    *gfp_addr &= ~0x00000004;
-                break;
-                default:
-                    *gfp_addr = 0x00000000;
-                break;
-           }
-            
-        }
-        break;
+
         default:
         break;
     }

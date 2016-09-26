@@ -771,6 +771,10 @@ static int xcan_rx(struct net_device *ndev)
 
 	stats->rx_bytes += cf->can_dlc;
 	stats->rx_packets++;
+    
+    if (cf->can_id == 1)
+        skb->protocol = htons(ETH_P_CAN | (cf->can_id << 8));
+
 	netif_receive_skb(skb);
 
 

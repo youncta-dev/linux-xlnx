@@ -14,12 +14,13 @@
 #include <linux/ioctl.h>
 #include <linux/completion.h>
 #include <linux/skbuff.h>
+#include <linux/can.h>
 
 #include "can_injector.h"
 
 MODULE_LICENSE("GPL");
 
-#define PKT_LEN	128
+#define PKT_LEN	8
 
 static unsigned int caninj_debug = 0;
 static int caninj_major = CANINJ_MAJOR;
@@ -41,21 +42,22 @@ struct work_data {
 static struct work_data* my_work;
 
 static struct net_device* net_dev;
-
+static struct can_frame rx_frame;
 
 
 /* our packet handler */
 int caninj_pkt_func(struct sk_buff *skb, struct net_device *dev, struct packet_type *pt, struct net_device *net) 
 {
     unsigned long flags;
-    caninj_dev_t* device = (caninj_dev_t*) dev;
-    
+    int i;
+    struct can_frame* cf;
+    caninj_dev_t* device = caninj_device;
+
     SPIN_LOCK_IRQSAVE(&(device->lock_rx), flags);
 
     if (skb->data) 
     {
 
-        caninj_debug = CANINJ_PKT_DUMP_RX;
         // Flow is configured
         if (caninj_debug & CANINJ_PKT_DUMP_RX)
         {       
@@ -63,17 +65,21 @@ int caninj_pkt_func(struct sk_buff *skb, struct net_device *dev, struct packet_t
             char buf[256];
             char* p = buf;
             p += sprintf(p, "datarx ");
-            for (k = 0; k < 64; k++)
+            for (k = 0; k < skb->len; k++)
                 p += sprintf(p, "%02x ", skb->data[k]);             
             p += sprintf(p, "\n");
             printk(buf);
         }    
 
     }
-                
+
+    cf = (struct can_frame*) skb->data;
+    rx_frame = *cf;
+
 	kfree_skb(skb);
+
     SPIN_UNLOCK_IRQRESTORE(&(device->lock_rx), flags);
-    
+
 	return 0;
 }
 
@@ -84,7 +90,9 @@ static void my_wq_function(struct work_struct *work)
   struct work_data * work_data = (struct work_data *)work;
   caninj_dev_t* dev = (caninj_dev_t*) work_data->data;
   struct sk_buff *skb;
+  struct can_frame* cf;
   unsigned long flags;  
+  int i = 0;
 
   if (caninj_debug & CANINJ_MISC)
       printk("WQ function %d\n", __LINE__);   
@@ -94,24 +102,29 @@ static void my_wq_function(struct work_struct *work)
       printk("About to send %d\n", __LINE__);   
 
 
-  skb = dev_alloc_skb(PKT_LEN);
+  skb = dev_alloc_skb(CAN_MTU);
 
   //skb->nh.raw = skb->data;
 
-  uint8_t* p = (uint8_t*) skb_put(skb, 8); 
+  cf = (struct can_frame*) skb_put(skb, CAN_MTU); 
 
-  p[0] = 0xab;
-  p[1] = 0xcd;
-  p[2] = 0xef;
-  p[3] = 0x33;
+
+  cf->can_id = 0x01;
+  cf->can_dlc = CAN_MAX_DLEN;
+  cf->__pad = 0x00;
+  cf->__res0 = 0x00;
+  cf->__res1 = 0x00;
+
+  for (i = 0; i < CAN_MAX_DLEN; i++)
+    cf->data[i] = i+10;
 
 
   skb->dev = net_dev;
   skb->protocol = __constant_htons(ETH_P_CAN);
   skb->ip_summed = CHECKSUM_NONE;
 
-  //dev_queue_xmit(skb);
-  //dev_put(net_dev);
+  dev_queue_xmit(skb);
+  dev_put(net_dev);
 
   if (caninj_debug & CANINJ_PKT_DUMP_TX)
   {       
@@ -150,7 +163,7 @@ static void my_timer_func(unsigned long ptr)
 
     my_timer.function = my_timer_func;
     my_timer.data = (unsigned long) caninj_device;
-    my_timer.expires = jiffies + (2*HZ);
+    my_timer.expires = jiffies + (HZ/200);
     add_timer(&my_timer);    
 
 }
@@ -314,9 +327,10 @@ static int __init caninj_init(void)
   
   do_gettimeofday(&time);
 
-  my_timer.expires = jiffies + (2*HZ);
+  my_timer.expires = jiffies + (HZ/200);
   add_timer(&my_timer);
 
+  printk("caninj_device %p", caninj_device);
 
   fast_can_proto.dev = NULL;
 

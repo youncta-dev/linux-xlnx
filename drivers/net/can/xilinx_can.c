@@ -39,6 +39,11 @@
 
 #define DRIVER_NAME	"xilinx_can"
 
+#define DUMP_TX     0x00000001
+#define DUMP_RX     0x00000002
+
+#define DUMP_TIME   0x00000010
+
 /* CAN registers set */
 enum xcan_reg {
 	XCAN_SRR_OFFSET		= 0x00, /* Software reset */
@@ -274,9 +279,8 @@ static struct can_bittiming_const xcan_bittiming_const = {
 };
 
 static struct dentry* dir = NULL;
-static int dump_tx = 0;
-static int dump_rx = 0;
-
+static int dump = 0;
+static int counter = 0;
 
 /* CAN Data Bittiming constants as per Xilinx CAN specs */
 static struct can_bittiming_const xcan_data_bittiming_const = {
@@ -692,7 +696,7 @@ static int xcan_start_xmit(struct sk_buff *skb, struct net_device *ndev)
     
 
 
-    if (dump_tx) {
+    if (dump & DUMP_TX) {
         do_gettimeofday(&tv);
         printk_deferred(KERN_ALERT "-> %10lu id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", tv.tv_usec, cf->can_id, cf->len, cf->data[0],
                                                                                                               cf->data[1],
@@ -704,6 +708,7 @@ static int xcan_start_xmit(struct sk_buff *skb, struct net_device *ndev)
                                                                                                               cf->data[7]
                                                                                                             );
     }
+
 
 	return NETDEV_TX_OK;
 }
@@ -778,7 +783,7 @@ static int xcan_rx(struct net_device *ndev)
 	netif_receive_skb(skb);
 
 
-    if (dump_rx) {
+    if (dump & DUMP_RX) {
         do_gettimeofday(&tv);
         printk_deferred(KERN_ALERT "<- %10lu id: %04x len: %02x data: %02x %02x %02x %02x %02x %02x %02x %02x\n", tv.tv_usec, cf->can_id, cf->can_dlc, cf->data[0],
                                                                                                               cf->data[1],
@@ -790,6 +795,16 @@ static int xcan_rx(struct net_device *ndev)
                                                                                                               cf->data[7]
                                                                                                             );
     }
+
+    if (dump & DUMP_TIME) {
+        if ((counter++%10000) == 0) {
+            do_gettimeofday(&tv); 
+
+            printk_deferred(KERN_ALERT "timestamp %10lu\n", tv.tv_sec*1000000 + tv.tv_usec);
+        }
+    }
+
+    
 	return 1;
 }
 
@@ -1626,14 +1641,9 @@ static int xcan_probe(struct platform_device *pdev)
     }
     
     
-    junk = debugfs_create_u32("dump_tx", 0777, dir, &dump_tx);
+    junk = debugfs_create_u32("dump", 0777, dir, &dump);
     if (!junk) {
-        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/xcan/dump_tx\n");
-    }
-
-    junk = debugfs_create_u32("dump_rx", 0777, dir, &dump_rx);
-    if (!junk) {
-        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/xcan/dump_rx\n");
+        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/xcan/dump\n");
     }
 
 	return 0;

@@ -103,19 +103,12 @@
 	    compatible = "yemacl";
 	    status = "okay";
 	    reg = <0x44000000 0x10000 0x45000000 0x20000>;
-        local-mac-address = [88 77 66 55 44 33];
+
 		interrupt-parent = <&intc>;
 		interrupts = <0 29 1>; 
     };
 
-    yemacl@60000000 {
-	    compatible = "yemacl";
-	    status = "okay";
-	    reg = <0x60000000 0x10000 0x50000000 0x20000>;
-        local-mac-address = [88 77 66 55 44 34];
-		interrupt-parent = <&intc>;
-		interrupts = <0 32 1>; 
-    };
+
 
     temac@47000000 {
 	    compatible = "temac";
@@ -200,13 +193,14 @@
 };
 
 &gpio0 {
+	status = "disabled";
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_gpio0_default>;
 };
 
 &i2c1 {
-    status = "disabled";
-	clock-frequency = <400000>;
+    status = "okay";
+	clock-frequency = <100000>;
 };
 
 &i2c0 {

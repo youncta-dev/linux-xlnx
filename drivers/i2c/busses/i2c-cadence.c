@@ -19,6 +19,10 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/pm_runtime.h>
+#include <linux/debugfs.h>
+
+#define DUMP_TX     0x00000001
+#define DUMP_RX     0x00000002
 
 /* Register offsets for the I2C device. */
 #define CDNS_I2C_CR_OFFSET		0x00 /* Control Register, RW */
@@ -178,6 +182,10 @@ struct cdns_platform_data {
 #define to_cdns_i2c(_nb)	container_of(_nb, struct cdns_i2c, \
 					     clk_rate_change_nb)
 
+
+static struct dentry* dir = NULL;
+static int dump = 0;
+
 /**
  * cdns_i2c_clear_bus_hold - Clear bus hold bit
  * @id:	Pointer to driver data struct
@@ -240,6 +248,9 @@ static irqreturn_t cdns_i2c_isr(int irq, void *ptr)
 	if (id->p_recv_buf &&
 	    ((isr_status & CDNS_I2C_IXR_COMP) ||
 	     (isr_status & CDNS_I2C_IXR_DATA))) {
+        
+        if (dump & DUMP_RX) 
+            printk_deferred(KERN_ALERT "<- ");
 		/* Read data if receive data valid is set */
 		while (cdns_i2c_readreg(CDNS_I2C_SR_OFFSET) &
 		       CDNS_I2C_SR_RXDV) {
@@ -252,15 +263,22 @@ static irqreturn_t cdns_i2c_isr(int irq, void *ptr)
 			    !id->bus_hold_flag)
 				cdns_i2c_clear_bus_hold(id);
 
-			*(id->p_recv_buf)++ =
+			*(id->p_recv_buf) =
 				cdns_i2c_readreg(CDNS_I2C_DATA_OFFSET);
+
+            if (dump & DUMP_RX) 
+                printk_deferred(KERN_ALERT "%02x ",  *(id->p_recv_buf));
+            id->p_recv_buf++;
+
 			id->recv_count--;
 			id->curr_recv_count--;
 
 			if (cdns_is_holdquirk(id, hold_quirk))
 				break;
 		}
-
+        
+        if (dump & DUMP_RX) 
+            printk_deferred(KERN_ALERT "\n");
 		/*
 		 * The controller sends NACK to the slave when transfer size
 		 * register reaches zero without considering the HOLD bit.
@@ -458,7 +476,7 @@ static void cdns_i2c_msend(struct cdns_i2c *id)
 	ctrl_reg = cdns_i2c_readreg(CDNS_I2C_CR_OFFSET);
 	ctrl_reg &= ~CDNS_I2C_CR_RW;
 	ctrl_reg |= CDNS_I2C_CR_CLR_FIFO;
-
+    
 	/*
 	 * Check for the message size against FIFO depth and set the
 	 * 'hold bus' bit if it is greater than FIFO depth.
@@ -484,10 +502,19 @@ static void cdns_i2c_msend(struct cdns_i2c *id)
 	else
 		bytes_to_send = id->send_count;
 
+    if (dump & DUMP_TX) {
+        printk_deferred(KERN_ALERT "-> ");
+    }
+
 	while (bytes_to_send--) {
+        if (dump & DUMP_TX) 
+            printk_deferred(KERN_ALERT "%02x ",  *(id->p_send_buf));
 		cdns_i2c_writereg((*(id->p_send_buf)++), CDNS_I2C_DATA_OFFSET);
 		id->send_count--;
 	}
+    
+    if (dump & DUMP_TX) 
+        printk_deferred(KERN_ALERT "\n");
 
 	/*
 	 * Clear the bus hold flag if there is no more data
@@ -972,6 +999,7 @@ static int cdns_i2c_probe(struct platform_device *pdev)
 	struct cdns_i2c *id;
 	int ret;
 	const struct of_device_id *match;
+    struct dentry *junk;
 
 	id = devm_kzalloc(&pdev->dev, sizeof(*id), GFP_KERNEL);
 	if (!id)
@@ -1028,7 +1056,7 @@ static int cdns_i2c_probe(struct platform_device *pdev)
 	if (ret || (id->i2c_clk > CDNS_I2C_SPEED_MAX))
 		id->i2c_clk = CDNS_I2C_SPEED_DEFAULT;
 
-	id->ctrl_reg = CDNS_I2C_CR_ACK_EN | CDNS_I2C_CR_NEA | CDNS_I2C_CR_MS;
+	id->ctrl_reg = CDNS_I2C_CR_HOLD | CDNS_I2C_CR_ACK_EN | CDNS_I2C_CR_NEA | CDNS_I2C_CR_MS;
 
 	ret = cdns_i2c_setclk(id->input_clk, id);
 	if (ret) {
@@ -1053,6 +1081,18 @@ static int cdns_i2c_probe(struct platform_device *pdev)
 
 	dev_info(&pdev->dev, "%u kHz mmio %08lx irq %d\n",
 		 id->i2c_clk / 1000, (unsigned long)r_mem->start, id->irq);
+
+
+    dir = debugfs_create_dir("i2c", 0);
+    if (!dir) {
+        printk(KERN_INFO "debugfs: cannot create /sys/kernel/debug/i2c\n");
+    }
+    
+    
+    junk = debugfs_create_u32("dump", 0777, dir, &dump);
+    if (!junk) {
+        printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/i2c/dump\n");
+    }
 
 	return 0;
 

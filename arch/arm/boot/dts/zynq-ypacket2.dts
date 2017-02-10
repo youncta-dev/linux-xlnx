@@ -108,10 +108,10 @@
 		interrupts = <0 29 1>; 
     };
 
-    rfd@43c20000 {
+    rfd@43c10000 {
         compatible = "rfd";
         status = "okay";
-        reg = <0x43c20000 0x40000>;
+        reg = <0x43c10000 0x10000 0x43c20000 0x10000 0x43c30000 0x10000 0x43c40000 0x10000>;
  		interrupt-parent = <&intc>;
 		interrupts = <0 30 1 >,  <0 31 1 >; 
        

@@ -319,11 +319,11 @@ static int cdns_wdt_probe(struct platform_device *pdev)
 	unsigned long clock_f;
 	struct cdns_wdt *wdt;
 	struct watchdog_device *cdns_wdt_device;
-    printk(KERN_INFO "Probing SWDT");
+
 	wdt = devm_kzalloc(&pdev->dev, sizeof(*wdt), GFP_KERNEL);
 	if (!wdt)
 		return -ENOMEM;
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	cdns_wdt_device = &wdt->cdns_wdt_device;
 	cdns_wdt_device->info = &cdns_wdt_info;
 	cdns_wdt_device->ops = &cdns_wdt_ops;
@@ -335,7 +335,7 @@ static int cdns_wdt_probe(struct platform_device *pdev)
 	wdt->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(wdt->regs))
 		return PTR_ERR(wdt->regs);
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	/* Register the interrupt */
 	wdt->rst = of_property_read_bool(pdev->dev.of_node, "reset-on-timeout");
 	irq = platform_get_irq(pdev, 0);
@@ -349,7 +349,7 @@ static int cdns_wdt_probe(struct platform_device *pdev)
 			return ret;
 		}
 	}
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	/* Initialize the members of cdns_wdt structure */
 	cdns_wdt_device->parent = &pdev->dev;
 
@@ -358,7 +358,7 @@ static int cdns_wdt_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "unable to set timeout value\n");
 		return ret;
 	}
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	watchdog_set_nowayout(cdns_wdt_device, nowayout);
 	watchdog_set_drvdata(cdns_wdt_device, wdt);
 
@@ -368,13 +368,13 @@ static int cdns_wdt_probe(struct platform_device *pdev)
 		ret = PTR_ERR(wdt->clk);
 		return ret;
 	}
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	ret = clk_prepare_enable(wdt->clk);
 	if (ret) {
 		dev_err(&pdev->dev, "unable to enable clock\n");
 		return ret;
 	}
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	clock_f = clk_get_rate(wdt->clk);
 	if (clock_f <= CDNS_WDT_CLK_75MHZ) {
 		wdt->prescaler = CDNS_WDT_PRESCALE_512;
@@ -393,14 +393,14 @@ static int cdns_wdt_probe(struct platform_device *pdev)
 			ret);
 		goto err_clk_disable;
 	}
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	ret = watchdog_register_device(cdns_wdt_device);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to register wdt device\n");
 		goto err_clk_disable;
 	}
 	platform_set_drvdata(pdev, wdt);
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	dev_dbg(&pdev->dev, "Xilinx Watchdog Timer at %p with timeout %ds%s\n",
 		 wdt->regs, cdns_wdt_device->timeout,
 		 nowayout ? ", nowayout" : "");
@@ -409,7 +409,7 @@ static int cdns_wdt_probe(struct platform_device *pdev)
 
 err_clk_disable:
 	clk_disable_unprepare(wdt->clk);
-    printk(KERN_INFO "%d SWDT", __LINE__);
+
 	return ret;
 }
 

@@ -129,10 +129,9 @@
 		stdout-path = &uart0;
 	};
 
+
+
 };
-
-
-
 
 
 &qspi {
@@ -345,6 +344,13 @@
        status = "okay";
 
 };
+
+&watchdog0 {
+    status = "okay";
+    timeout-sec = <60>;
+    reset-on-timeout;
+};
+
 
 
 

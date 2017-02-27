@@ -345,12 +345,6 @@
 
 };
 
-&watchdog0 {
-    status = "okay";
-    timeout-sec = <60>;
-    reset-on-timeout;
-};
-
 
 
 

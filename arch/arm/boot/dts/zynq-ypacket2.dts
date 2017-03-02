@@ -123,6 +123,14 @@
 	    reg = <0x47000000 0x10000>;
     };
 
+    axi-timebase-wdt@42600000 {
+        status = "okay";
+	    clock-frequency = <125000000>;
+	    compatible = "xlnx,xps-timebase-wdt-1.00.a";
+	    reg = <0x42600000 0x10000>;
+	    xlnx,wdt-enable-once = <0x0>;
+	    xlnx,wdt-interval = <0x1f>;
+    };
 
 	chosen {
 		bootargs = "console=ttyPS0,115200 rootfstype=squashfs root=/dev/mtdblock4 ro earlyprintk";

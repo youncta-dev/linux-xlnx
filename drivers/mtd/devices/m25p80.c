@@ -26,13 +26,49 @@
 #include <linux/spi/spi.h>
 #include <linux/spi/flash.h>
 #include <linux/mtd/spi-nor.h>
+#include <linux/debugfs.h>
+#include <linux/reboot.h>
+#include <linux/mtd/spi-nor.h>
+
+
+int spi_nor_wait_till_ready(struct spi_nor *nor);
+int write_ear(struct spi_nor *nor, u32 addr);
 
 #define	MAX_CMD_SIZE		6
+#define M25P80_DEBUG_DUMP_WRITE_REG           0x00000001
+#define M25P80_DEBUG_DUMP_READ_REG            0x00000002
+
+
+
 struct m25p {
 	struct spi_device	*spi;
 	struct spi_nor		spi_nor;
 	u8			command[MAX_CMD_SIZE];
 };
+
+
+
+static struct spi_nor *spi_nor;
+
+static struct dentry* dir = NULL;
+static uint32_t debug_flags = 0;
+static uint32_t protect_blocks = SR_BP3 | SR_BP0;
+static uint8_t  sr = 0;
+
+
+
+static int flash_reset_handle(struct notifier_block *this, unsigned long mode, void *cmd)
+{
+    write_ear(spi_nor, 0);
+    printk(KERN_INFO "Reset flash EAR\n");
+    return NOTIFY_DONE;
+}
+
+static struct notifier_block flash_reset_handler = {
+         .notifier_call = flash_reset_handle,
+};
+
+
 
 static int m25p80_read_reg(struct spi_nor *nor, u8 code, u8 *val, int len)
 {
@@ -43,6 +79,16 @@ static int m25p80_read_reg(struct spi_nor *nor, u8 code, u8 *val, int len)
 	ret = spi_write_then_read(spi, &code, 1, val, len);
 	if (ret < 0)
 		dev_err(&spi->dev, "error %d reading %x\n", ret, code);
+
+    if (code == SPINOR_OP_RDSR) {
+        sr = val[0];
+    }
+
+
+    if (debug_flags & M25P80_DEBUG_DUMP_READ_REG)
+    {
+        printk(KERN_INFO "rcode %02x val %08x len %d\n", code, (val != NULL)? *((u32*) val):0, len);
+    }
 
 	return ret;
 }
@@ -65,6 +111,17 @@ static int m25p80_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
 {
 	struct m25p *flash = nor->priv;
 	struct spi_device *spi = flash->spi;
+
+    if (opcode == SPINOR_OP_WRSR) {
+        buf[0] |= (SR_TB | protect_blocks);
+        sr = buf[0];
+    }
+
+    if (debug_flags & M25P80_DEBUG_DUMP_WRITE_REG)
+    {
+       printk(KERN_INFO "wcode %02x val %08x len %d\n", opcode, (buf != NULL)? *((u32*) buf):0, len);
+    }
+
 
 	flash->command[0] = opcode;
 	if (buf)
@@ -199,6 +256,29 @@ static int m25p_probe(struct spi_device *spi)
 	enum read_mode mode = SPI_NOR_NORMAL;
 	char *flash_name;
 	int ret;
+    struct dentry *junk;
+    u8 val = 0;
+
+    dir = debugfs_create_dir("m25p80", 0);
+    if (!dir) {
+      printk(KERN_INFO "debugfs: cannot create /sys/kernel/debug/m25p80\n");
+    }
+
+
+    junk = debugfs_create_u32("debug", 0777, dir, &debug_flags);
+    if (!junk) {
+      printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/m25p80/debug\n");
+    }
+
+    junk = debugfs_create_u32("protect", 0777, dir, &protect_blocks);
+    if (!junk) {
+      printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/m25p80/protect\n");
+    }
+
+    junk = debugfs_create_u8("sr", 0777, dir, &sr);
+    if (!junk) {
+      printk(KERN_ALERT "debugfs: failed to create /sys/kernel/debug/m25p80/sr\n");
+    }
 
 	data = dev_get_platdata(&spi->dev);
 
@@ -245,6 +325,18 @@ static int m25p_probe(struct spi_device *spi)
 	ret = spi_nor_scan(nor, flash_name, mode);
 	if (ret)
 		return ret;
+
+    spi_nor = nor;
+
+    
+    m25p80_write_reg(nor, SPINOR_OP_WREN, NULL, 0);
+    m25p80_write_reg(nor, SPINOR_OP_WRSR, &val, 1);
+    spi_nor_wait_till_ready(nor);
+
+    m25p80_read_reg(nor, SPINOR_OP_RDSR, &val, 1);
+
+
+    register_reboot_notifier(&flash_reset_handler);
 
 	return mtd_device_register(&nor->mtd, data ? data->parts : NULL,
 				   data ? data->nr_parts : 0);

@@ -346,7 +346,7 @@ static int spi_nor_wait_till_ready_with_timeout(struct spi_nor *nor,
 	return -ETIMEDOUT;
 }
 
-static int spi_nor_wait_till_ready(struct spi_nor *nor)
+int spi_nor_wait_till_ready(struct spi_nor *nor)
 {
 	return spi_nor_wait_till_ready_with_timeout(nor,
 						    DEFAULT_READY_WAIT_JIFFIES);
@@ -356,7 +356,7 @@ static int spi_nor_wait_till_ready(struct spi_nor *nor)
  * Update Extended Address/bank selection Register.
  * Call with flash->lock locked.
  */
-static int write_ear(struct spi_nor *nor, u32 addr)
+int write_ear(struct spi_nor *nor, u32 addr)
 {
 	u8 code;
 	u8 ear;

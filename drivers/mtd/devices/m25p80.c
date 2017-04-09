@@ -38,7 +38,8 @@ int write_ear(struct spi_nor *nor, u32 addr);
 #define M25P80_DEBUG_DUMP_WRITE_REG           0x00000001
 #define M25P80_DEBUG_DUMP_READ_REG            0x00000002
 
-
+#define MT25_READ_NONVOLATILE_CONFIG_REG        0xb5
+#define MT25_READ_VOLATILE_CONFIG_REG           0x85
 
 struct m25p {
 	struct spi_device	*spi;
@@ -52,8 +53,8 @@ static struct spi_nor *spi_nor;
 
 static struct dentry* dir = NULL;
 static uint32_t debug_flags = 0;
-static uint32_t protect_blocks = SR_BP3 | SR_BP0;
-static uint8_t  sr = 0;
+static uint32_t protect_blocks = SR_BP3;
+static uint8_t  sr = 0xff;
 
 
 
@@ -113,13 +114,19 @@ static int m25p80_write_reg(struct spi_nor *nor, u8 opcode, u8 *buf, int len)
 	struct spi_device *spi = flash->spi;
 
     if (opcode == SPINOR_OP_WRSR) {
-        buf[0] |= (SR_TB | protect_blocks);
-        sr = buf[0];
+
+        buf[0] = (buf[0] & ~(SR_BP3 | SR_BP_BIT_MASK)) | (SR_TB | protect_blocks);
+        if (sr != buf[0])
+        {
+            sr = buf[0];
+            //printk(KERN_INFO "++++ SR%02x\n", sr);
+        }
     }
 
     if (debug_flags & M25P80_DEBUG_DUMP_WRITE_REG)
     {
-       printk(KERN_INFO "wcode %02x val %08x len %d\n", opcode, (buf != NULL)? *((u32*) buf):0, len);
+
+        printk(KERN_INFO "wcode %02x val %08x len %d\n", opcode, (buf != NULL)? *((u32*) buf):0, len);
     }
 
 
@@ -257,7 +264,7 @@ static int m25p_probe(struct spi_device *spi)
 	char *flash_name;
 	int ret;
     struct dentry *junk;
-    u8 val = 0;
+    u8 val[8];
 
     dir = debugfs_create_dir("m25p80", 0);
     if (!dir) {
@@ -328,12 +335,16 @@ static int m25p_probe(struct spi_device *spi)
 
     spi_nor = nor;
 
+    // Dumping non volatile configuration register
+    m25p80_read_reg(nor, MT25_READ_NONVOLATILE_CONFIG_REG, val, 2);
+    printk(KERN_INFO "NONVOLATILE CONFIG REG %02x%02x\n", val[0], val[1]);
     
     m25p80_write_reg(nor, SPINOR_OP_WREN, NULL, 0);
-    m25p80_write_reg(nor, SPINOR_OP_WRSR, &val, 1);
+    val[0] = 0;
+    m25p80_write_reg(nor, SPINOR_OP_WRSR, val, 1);
     spi_nor_wait_till_ready(nor);
 
-    m25p80_read_reg(nor, SPINOR_OP_RDSR, &val, 1);
+    m25p80_read_reg(nor, SPINOR_OP_RDSR, val, 1);
 
 
     register_reboot_notifier(&flash_reset_handler);

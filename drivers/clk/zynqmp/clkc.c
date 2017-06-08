@@ -582,7 +582,7 @@ static void __init zynqmp_clk_setup(struct device_node *np)
 	 * Currently, using the acpu clock as the parent based on the
 	 * assumption that it comes from APB.
 	 */
-	wdt_ext_clk_mux_parents[0] = clk_output_name[acpu];
+	wdt_ext_clk_mux_parents[0] = clk_output_name[topsw_lsbus];
 	for (i = 0; i < ARRAY_SIZE(swdt_ext_clk_input_names); i++) {
 		int idx = of_property_match_string(np, "clock-names",
 				swdt_ext_clk_input_names[i]);
@@ -741,15 +741,17 @@ static void __init zynqmp_clk_setup(struct device_node *np)
 			CRF_APB_DBG_TSTMP_CTRL, periph_parents[dbg_tstmp], 0,
 			0, 0);
 
-	zynqmp_clk_register_periph_clk(CLK_SET_RATE_PARENT, dp_video_ref,
-			clk_output_name[dp_video_ref],
-			CRF_APB_DP_VIDEO_REF_CTRL,
-			periph_parents[dp_video_ref], 1, 1, 24);
+	zynqmp_clk_register_periph_clk(CLK_SET_RATE_PARENT | CLK_FRAC,
+				       dp_video_ref,
+				       clk_output_name[dp_video_ref],
+				       CRF_APB_DP_VIDEO_REF_CTRL,
+				       periph_parents[dp_video_ref], 1, 1, 24);
 
-	zynqmp_clk_register_periph_clk(CLK_SET_RATE_PARENT, dp_audio_ref,
-			clk_output_name[dp_audio_ref],
-			CRF_APB_DP_AUDIO_REF_CTRL,
-			periph_parents[dp_audio_ref], 1, 1, 24);
+	zynqmp_clk_register_periph_clk(CLK_SET_RATE_PARENT | CLK_FRAC,
+				       dp_audio_ref,
+				       clk_output_name[dp_audio_ref],
+				       CRF_APB_DP_AUDIO_REF_CTRL,
+				       periph_parents[dp_audio_ref], 1, 1, 24);
 
 	zynqmp_clk_register_periph_clk(0, dp_stc_ref,
 			clk_output_name[dp_stc_ref], CRF_APB_DP_STC_REF_CTRL,

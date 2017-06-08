@@ -32,6 +32,7 @@
 #include <linux/soc/xilinx/zynqmp/fw.h>
 #include <linux/slab.h>
 
+#include <linux/phy/phy-zynqmp.h>
 #include <linux/of_address.h>
 
 #include "core.h"
@@ -44,7 +45,30 @@ struct dwc3_of_simple {
 	struct device		*dev;
 	struct clk		**clks;
 	int			num_clocks;
+	void __iomem		*regs;
 };
+
+void dwc3_set_phydata(struct device *dev, struct phy *phy)
+{
+	struct device_node *node = of_get_parent(dev->of_node);
+	int ret;
+
+	if ((node != NULL) &&
+		of_device_is_compatible(node, "xlnx,zynqmp-dwc3")) {
+		struct platform_device *pdev_parent;
+		struct dwc3_of_simple   *simple;
+
+		pdev_parent = of_find_device_by_node(node);
+		simple = platform_get_drvdata(pdev_parent);
+
+		/* assign USB vendor regs to phy lane */
+		ret = xpsgtr_set_protregs(phy, simple->regs);
+		if (ret) {
+			dev_err(&pdev_parent->dev,
+				"Not able to set PHY data\n");
+		}
+	}
+}
 
 int dwc3_enable_hw_coherency(struct device *dev)
 {
@@ -52,30 +76,17 @@ int dwc3_enable_hw_coherency(struct device *dev)
 
 	if (of_device_is_compatible(node, "xlnx,zynqmp-dwc3")) {
 		struct platform_device *pdev_parent;
-		struct resource *res;
+		struct dwc3_of_simple *simple;
 		void __iomem *regs;
 		u32 reg;
-		int ret;
 
 		pdev_parent = of_find_device_by_node(node);
-		res = platform_get_resource(pdev_parent,
-					    IORESOURCE_MEM, 0);
-		if (!res) {
-			dev_err(dev, "missing memory resource\n");
-			return -ENODEV;
-		}
-
-		regs = devm_ioremap_resource(&pdev_parent->dev, res);
-		if (IS_ERR(regs)) {
-			ret = PTR_ERR(regs);
-			return ret;
-		}
+		simple = platform_get_drvdata(pdev_parent);
+		regs = simple->regs;
 
 		reg = readl(regs + XLNX_USB_COHERENCY);
 		reg |= XLNX_USB_COHERENCY_ENABLE;
 		writel(reg, regs + XLNX_USB_COHERENCY);
-
-		devm_ioremap_release(&pdev_parent->dev, res);
 	}
 
 	return 0;
@@ -146,6 +157,18 @@ static int dwc3_of_simple_probe(struct platform_device *pdev)
 
 		struct device_node	*child;
 		char			*soc_rev;
+		struct resource		*res;
+		void __iomem		*regs;
+
+		res = platform_get_resource(pdev,
+					    IORESOURCE_MEM, 0);
+
+		regs = devm_ioremap_resource(&pdev->dev, res);
+		if (IS_ERR(regs))
+			return PTR_ERR(regs);
+
+		/* Store the usb control regs into simple for further usage */
+		simple->regs = regs;
 
 		/* read Silicon version using nvmem driver */
 		soc_rev = zynqmp_nvmem_get_silicon_version(&pdev->dev,

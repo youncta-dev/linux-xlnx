@@ -423,7 +423,6 @@ static int xlnk_allocbuf(unsigned int len, unsigned int cacheable)
 	spin_unlock(&xlnk_buf_lock);
 
 	if (id <= 0 || id >= XLNK_BUF_POOL_SIZE) {
-		pr_err("No id could be found in range\n");
 		return -ENOMEM;
 	}
 
@@ -1646,6 +1645,13 @@ static int xlnk_memop_ioctl(struct file *filp, unsigned long arg_addr)
 			args.memop.phys_addr = (xlnk_intptr_type)
 				sg_dma_address(cp->dbuf_sg_table->sgl);
 			args.memop.token = 0;
+			status = copy_to_user((void __user *)arg_addr,
+					      &args,
+					      sizeof(union xlnk_args));
+			if (status)
+				pr_err("Error in copy_to_user.  status = %d\n",
+				       status);
+
 		}
 	} else {
 		if (buf_id > 0) {
@@ -1729,7 +1735,7 @@ static int xlnk_mmap(struct file *filp, struct vm_area_struct *vma)
 	int bufid;
 	int status;
 
-	bufid = vma->vm_pgoff >> (24 - PAGE_SHIFT);
+	bufid = vma->vm_pgoff >> (16 - PAGE_SHIFT);
 
 	if (bufid == 0)
 		status = remap_pfn_range(vma, vma->vm_start,
